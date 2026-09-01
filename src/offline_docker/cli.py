@@ -36,6 +36,7 @@ _UP_OFFLINE_EPILOG = """\
   offline-docker up-offline -p .
   offline-docker up-offline -p . --lab
   offline-docker up-offline -p . --no-build
+  offline-docker up-offline -p . --no-cache
   offline-docker up-offline -p . --no-deps backend
   offline-docker up-offline -p . --lab frontend
 
@@ -71,7 +72,16 @@ _BUILD_OFFLINE_EPILOG = """\
   offline-docker build-offline -p .
   offline-docker build-offline -p . backend
   offline-docker build-offline -p . base backend frontend
+  offline-docker build-offline -p . --no-cache
 """
+
+
+def _add_no_cache_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Собрать без кэша слоёв Docker (docker build/compose build --no-cache)",
+    )
 
 
 def _add_project_args(parser: argparse.ArgumentParser) -> None:
@@ -161,10 +171,14 @@ def main(argv: list[str] | None = None) -> int:
         ("download-offline-cache", "Run all download-* commands"),
         ("validate-offline-cache", "Validate offline-cache completeness"),
         ("load-docker-images", "docker load from offline-cache/docker"),
-        ("build-base-offline", "Build base offline image"),
-        ("dev-up", "Ensure base, compose build, up"),
     ):
         add_cmd(name, help_text)
+
+    p_build_base = add_cmd("build-base-offline", "Build base offline image")
+    _add_no_cache_arg(p_build_base)
+
+    p_dev_up = add_cmd("dev-up", "Ensure base, compose build, up")
+    _add_no_cache_arg(p_dev_up)
 
     p_build = add_cmd(
         "build-offline",
@@ -177,6 +191,7 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="base backend frontend (default: из config.build_services)",
     )
+    _add_no_cache_arg(p_build)
 
     p_up = add_cmd(
         "up-offline",
@@ -199,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Не пересоздавать зависимые сервисы",
     )
+    _add_no_cache_arg(p_up)
     p_up.add_argument(
         "services",
         nargs="*",
@@ -238,16 +254,19 @@ def main(argv: list[str] | None = None) -> int:
         "download-offline-cache": lambda: _download_offline_cache(ctx),
         "validate-offline-cache": lambda: validate_offline_cache(ctx),
         "load-docker-images": lambda: load_docker_images(ctx),
-        "build-base-offline": lambda: build_base_offline_cmd(ctx),
+        "build-base-offline": lambda: build_base_offline_cmd(ctx, no_cache=args.no_cache),
         "build-offline": lambda: build_offline(
-            ctx, list(args.targets) if args.targets else None
+            ctx,
+            list(args.targets) if args.targets else None,
+            no_cache=args.no_cache,
         ),
-        "dev-up": lambda: dev_up(ctx),
+        "dev-up": lambda: dev_up(ctx, no_cache=args.no_cache),
         "up-offline": lambda: up_offline(
             ctx,
             lab=args.lab,
             no_build=args.no_build,
             no_deps=args.no_deps,
+            no_cache=args.no_cache,
             services=list(args.services) if args.services else None,
         ),
         "scan-trivy-offline": lambda: scan_trivy_offline(ctx, args.target, args.image),
