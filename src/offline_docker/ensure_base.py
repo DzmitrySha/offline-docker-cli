@@ -7,18 +7,20 @@ from offline_docker.context import ProjectContext
 from offline_docker.utils import docker_mount_path
 
 
-def ensure_base_online(ctx: ProjectContext, image: str | None = None) -> None:
+def ensure_base_online(
+    ctx: ProjectContext, image: str | None = None, *, no_cache: bool = False
+) -> None:
     image = image or ctx.config.images.base
-    if docker_cmd.image_exists(image):
+    if not no_cache and docker_cmd.image_exists(image):
         print(f">>> reuse existing base: {image}")
         return
     df = ctx.config.dockerfiles.base
     print(f">>> docker build base -> {image}")
-    docker_cmd.run(
-        ["docker", "build", "-f", df, "-t", image, "."],
-        cwd=ctx.root,
-        env={"DOCKER_BUILDKIT": "1"},
-    )
+    cmd = ["docker", "build"]
+    if no_cache:
+        cmd.append("--no-cache")
+    cmd.extend(["-f", df, "-t", image, "."])
+    docker_cmd.run(cmd, cwd=ctx.root, env={"DOCKER_BUILDKIT": "1"})
 
 
 def require_base_offline(ctx: ProjectContext, image: str | None = None) -> None:
@@ -30,9 +32,11 @@ def require_base_offline(ctx: ProjectContext, image: str | None = None) -> None:
         )
 
 
-def build_base_offline(ctx: ProjectContext, image: str | None = None) -> None:
+def build_base_offline(
+    ctx: ProjectContext, image: str | None = None, *, no_cache: bool = False
+) -> None:
     image = image or ctx.config.images.base
-    if docker_cmd.image_exists(image):
+    if not no_cache and docker_cmd.image_exists(image):
         print(f">>> reuse existing base: {image}")
         return
 
@@ -40,10 +44,11 @@ def build_base_offline(ctx: ProjectContext, image: str | None = None) -> None:
     df = ctx.config.dockerfiles.base_offline
     oc_ctx = docker_mount_path(ctx.offline_cache)
     print(f">>> docker build base -> {log_file}")
-    docker_cmd.run_tee(
+    cmd = ["docker", "build"]
+    if no_cache:
+        cmd.append("--no-cache")
+    cmd.extend(
         [
-            "docker",
-            "build",
             "-f",
             df,
             "--build-context",
@@ -51,8 +56,6 @@ def build_base_offline(ctx: ProjectContext, image: str | None = None) -> None:
             "-t",
             image,
             ".",
-        ],
-        log_file,
-        cwd=ctx.root,
-        env={"DOCKER_BUILDKIT": "1"},
+        ]
     )
+    docker_cmd.run_tee(cmd, log_file, cwd=ctx.root, env={"DOCKER_BUILDKIT": "1"})
