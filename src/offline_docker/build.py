@@ -30,7 +30,7 @@ def _stamp_ui_project_label(image: str, project: str) -> None:
         )
 
 
-def build_base_offline_cmd(ctx: ProjectContext) -> None:
+def build_base_offline_cmd(ctx: ProjectContext, *, no_cache: bool = False) -> None:
     image = os.environ.get("IMAGE", ctx.config.images.base)
     ctx.set_offline_cache_env()
 
@@ -43,13 +43,15 @@ def build_base_offline_cmd(ctx: ProjectContext) -> None:
     download_wheels(ctx)
     validate_offline_cache(ctx)
     load_docker_images(ctx)
-    build_base_offline(ctx, image)
+    build_base_offline(ctx, image, no_cache=no_cache)
 
     print()
     print(f"=== Готово: {image} ===")
 
 
-def build_offline(ctx: ProjectContext, targets: list[str] | None = None) -> None:
+def build_offline(
+    ctx: ProjectContext, targets: list[str] | None = None, *, no_cache: bool = False
+) -> None:
     if not targets:
         targets = list(ctx.config.build_services)
 
@@ -62,6 +64,8 @@ def build_offline(ctx: ProjectContext, targets: list[str] | None = None) -> None
     print(f"Compose:       {' '.join(compose_args)}")
     print(f"Логи:          {ctx.log_dir}")
     print(f"Сервисы:       {' '.join(targets)}")
+    if no_cache:
+        print("No-cache:      да")
     print()
 
     download_wheels(ctx)
@@ -72,7 +76,7 @@ def build_offline(ctx: ProjectContext, targets: list[str] | None = None) -> None
     compose_targets: list[str] = []
     for svc in targets:
         if svc == "base":
-            build_base_offline(ctx)
+            build_base_offline(ctx, no_cache=no_cache)
         elif svc in ("backend", "frontend"):
             compose_targets.append(svc)
         else:
@@ -85,14 +89,12 @@ def build_offline(ctx: ProjectContext, targets: list[str] | None = None) -> None
             require_base_offline(ctx)
         log_file = ctx.offline_build_log(svc)
         print(f">>> compose build {svc} -> {log_file}")
+        build_cmd = ["docker", "compose", *compose_args, "build"]
+        if no_cache:
+            build_cmd.append("--no-cache")
+        build_cmd.append(svc)
         docker_cmd.run_tee(
-            [
-                "docker",
-                "compose",
-                *compose_args,
-                "build",
-                svc,
-            ],
+            build_cmd,
             log_file,
             cwd=ctx.root,
             env={"DOCKER_BUILDKIT": "1"},
@@ -109,7 +111,7 @@ def build_offline(ctx: ProjectContext, targets: list[str] | None = None) -> None
     print(f"=== Готово. Логи: {ctx.log_dir}/offline-build-*.log ===")
 
 
-def dev_up(ctx: ProjectContext) -> None:
+def dev_up(ctx: ProjectContext, *, no_cache: bool = False) -> None:
     from offline_docker.ensure_base import ensure_base_online
 
     compose = ctx.config.compose_online
@@ -118,12 +120,11 @@ def dev_up(ctx: ProjectContext) -> None:
     print(f"Compose: {compose}")
     print()
 
-    ensure_base_online(ctx)
-    docker_cmd.run(
-        ["docker", "compose", "-f", compose, "build"],
-        cwd=ctx.root,
-        env={"DOCKER_BUILDKIT": "1"},
-    )
+    ensure_base_online(ctx, no_cache=no_cache)
+    build_cmd = ["docker", "compose", "-f", compose, "build"]
+    if no_cache:
+        build_cmd.append("--no-cache")
+    docker_cmd.run(build_cmd, cwd=ctx.root, env={"DOCKER_BUILDKIT": "1"})
     docker_cmd.run(
         ["docker", "compose", "-f", compose, "up", "-d"],
         cwd=ctx.root,
@@ -147,6 +148,7 @@ def up_offline(
     lab: bool = False,
     no_build: bool = False,
     no_deps: bool = False,
+    no_cache: bool = False,
     services: list[str] | None = None,
 ) -> None:
     ctx.set_offline_cache_env()
@@ -158,9 +160,18 @@ def up_offline(
     print(f"Compose:       {' '.join(compose_args)}")
     if lab:
         print("Lab:           docker-compose.lab.yml")
+    if no_cache:
+        print("No-cache:      да")
     print()
 
     _ensure_traefik_network()
+
+    if no_cache and not no_build:
+        build_cmd = ["docker", "compose", *compose_args, "build", "--no-cache"]
+        if services:
+            build_cmd.extend(services)
+        docker_cmd.run(build_cmd, cwd=ctx.root, env={"DOCKER_BUILDKIT": "1"})
+        no_build = True
 
     cmd = ["docker", "compose", *compose_args, "up", "-d"]
     if no_build:
