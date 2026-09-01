@@ -1,0 +1,70 @@
+{
+  "offline_cache": "offline-cache",
+  "log_dir": "storage/logs",
+  "app_name": "myapp",
+  "compose_online": "docker-compose.yml",
+  "compose_offline": "docker-compose.offline.yml",
+  "compose_build": [
+    "docker-compose.yml",
+    "docker-compose.offline.yml"
+  ],
+  "compose_up_offline": [
+    "docker-compose.yml",
+    "docker-compose.offline.yml"
+  ],
+  "compose_up_offline_lab": [
+    "docker-compose.yml",
+    "docker-compose.offline.yml",
+    "docker-compose.lab.yml"
+  ],
+  "python": {
+    "lock_files": ["pyproject.toml", "uv.lock", "requirements-base.txt"],
+    "torch_version_file": "requirements-base.txt",
+    "pytorch_index": "https://download.pytorch.org/whl/cu128"
+  },
+  "frontend": {
+    "dir": "frontend",
+    "lock_file": "package-lock.json"
+  },
+  "dockerfiles": {
+    "base": "Dockerfile.base",
+    "base_offline": "Dockerfile.base.offline",
+    "backend": "Dockerfile",
+    "backend_offline": "Dockerfile.offline",
+    "frontend": "frontend/Dockerfile",
+    "frontend_offline": "frontend/Dockerfile.offline"
+  },
+  "images": {
+    "base": "neuroai-base:cuda12",
+    "backend": "myapp-backend:latest",
+    "frontend": "myapp-frontend:latest"
+  },
+  "debs": {
+    "ubuntu_image": "ubuntu:24.04",
+    "packages": [
+      "locales", "python3.12", "python3.12-venv", "python3.12-dev", "python3-pip",
+      "git", "curl", "wget", "ca-certificates", "gnupg",
+      "libgl1", "libglib2.0-0", "libsm6", "libxext6", "libxrender1"
+    ],
+    "extra_repos": []
+  },
+  "docker_images": [
+    "ubuntu:24.04",
+    "node:22-bookworm-slim",
+    "nginx:1.28-alpine",
+    "aquasec/trivy:latest"
+  ],
+  "validate": {
+    "critical_wheels": [
+      {"pattern": "torch-*.whl", "label": "torch"},
+      {"pattern": "sqlalchemy-*.whl", "label": "sqlalchemy"}
+    ]
+  },
+  "trivy": {
+    "scanner_image": "aquasec/trivy:latest",
+    "db_max_age_days": 7,
+    "severity": "HIGH,CRITICAL",
+    "scanners": "vuln"
+  },
+  "build_services": ["base", "backend", "frontend"]
+}

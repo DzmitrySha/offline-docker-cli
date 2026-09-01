@@ -1,0 +1,239 @@
+"""Download Linux wheels into offline-cache/wheels."""
+
+from __future__ import annotations
+
+import os
+
+from offline_docker import docker_cmd
+from offline_docker.context import ProjectContext
+from offline_docker.utils import docker_mount_path
+
+
+WHEELS_GUEST_UV = r"""
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y --no-install-recommends \
+  python3.12 python3.12-venv python3.12-dev python3-pip ca-certificates curl \
+  build-essential pkg-config cython3 \
+  ffmpeg libavformat-dev libavcodec-dev libavdevice-dev \
+  libavutil-dev libavfilter-dev libswscale-dev libswresample-dev
+rm -rf /var/lib/apt/lists/*
+
+python3.12 -m venv /opt/venv
+export PATH="/opt/venv/bin:$PATH"
+export UV_PROJECT_ENVIRONMENT=/opt/venv
+export UV_LINK_MODE=copy
+pip install --no-cache-dir -U pip uv
+
+WHEELS=/wheels
+PYTORCH_INDEX="${PYTORCH_INDEX}"
+PYPI_INDEX="${PYPI_INDEX}"
+TORCH_VERSION="${TORCH_VERSION}"
+USE_UV="${USE_UV_EXPORT}"
+# Кэш uv — только внутри контейнера (bind-mount Windows ломает atomic rename в .uv-cache)
+UV_CACHE_DIR="/tmp/uv-cache"
+export UV_CACHE_DIR
+mkdir -p "$UV_CACHE_DIR"
+
+echo "mount-check-$(date +%s)" > "${WHEELS}/.mount-check"
+if [[ ! -f "${WHEELS}/.mount-check" ]]; then
+  echo "ERROR: /wheels недоступен - проверьте Docker mount path" >&2
+  exit 1
+fi
+
+harvest_uv_wheels() {
+  # Остаточный сбор из /tmp (если где-то вызывался uv pip)
+  find "$UV_CACHE_DIR" -type f -name "*.whl" -exec cp -un {} "$WHEELS"/ \; 2>/dev/null || true
+}
+
+pip_common=(
+  --dest "$WHEELS"
+  --prefer-binary
+  --ignore-requires-python
+  --index-url "$PYPI_INDEX"
+  --extra-index-url "$PYTORCH_INDEX"
+  --find-links "$WHEELS"
+)
+
+echo ""
+echo ">>> [1/4] pip, uv, setuptools, wheel"
+pip download "${pip_common[@]}" pip uv setuptools wheel
+
+if [[ -n "$TORCH_VERSION" ]]; then
+  echo ""
+  echo ">>> [2/4] torch + nvidia-* (base image)"
+  if compgen -G "${WHEELS}/torch-${TORCH_VERSION}+cu128*.whl" > /dev/null \
+     && compgen -G "${WHEELS}/nvidia_cublas_cu12*.whl" > /dev/null; then
+    echo "    torch cu128 и nvidia-* уже в wheels/, пропуск"
+  else
+    pip download "${pip_common[@]}" \
+      --index-url "$PYTORCH_INDEX" \
+      --extra-index-url "$PYPI_INDEX" \
+      "torch==${TORCH_VERSION}"
+  fi
+
+  echo ""
+  echo ">>> [2b] torchaudio==${TORCH_VERSION}"
+  pip download \
+    --dest "$WHEELS" \
+    --prefer-binary \
+    --index-url "$PYTORCH_INDEX" \
+    --extra-index-url "$PYPI_INDEX" \
+    --find-links "$WHEELS" \
+    "torchaudio==${TORCH_VERSION}"
+fi
+
+IFS="|" read -ra _extra_specs <<< "${EXTRA_WHEEL_SPECS}"
+for spec in "${_extra_specs[@]}"; do
+  [[ -z "$spec" ]] && continue
+  echo ""
+  echo ">>> [2c] extra wheel: ${spec}"
+  pip download "${pip_common[@]}" "$spec"
+done
+
+if [[ "$USE_UV" == "1" ]]; then
+  echo ""
+  echo ">>> [3/4] uv export deps (prune: ${UV_EXPORT_PRUNE})"
+  cd /app
+  prune_args=()
+  for pkg in ${UV_EXPORT_PRUNE}; do
+    prune_args+=(--prune "$pkg")
+  done
+  uv export --frozen --no-dev --no-emit-project \
+    "${prune_args[@]}" \
+    --no-hashes \
+    -o /tmp/app-requirements.txt
+  if [[ -n "$TORCH_VERSION" ]]; then
+    printf 'torch==%s\ntorchaudio==%s\n' "$TORCH_VERSION" "$TORCH_VERSION" > /tmp/constraints.txt
+    pip download "${pip_common[@]}" -c /tmp/constraints.txt -r /tmp/app-requirements.txt
+    rm -f /wheels/torch-2.1[0-9].0-*.whl /wheels/torch-2.13*.whl \
+          /wheels/torchaudio-2.1[0-9]* /wheels/torchaudio-2.2* 2>/dev/null || true
+  else
+    pip download "${pip_common[@]}" -r /tmp/app-requirements.txt
+  fi
+elif [[ -f /app/requirements.txt ]]; then
+  echo ""
+  echo ">>> [3/4] requirements.txt (без uv.lock)"
+  pip download "${pip_common[@]}" -r /app/requirements.txt
+fi
+
+echo ""
+echo ">>> [3b] cython/setuptools + av fallback"
+pip download "${pip_common[@]}" "cython>=3.1.0a1,<4" "setuptools>=77" || true
+if ! compgen -G "/wheels/av-14.4.0-*.whl" > /dev/null; then
+  pip download "${pip_common[@]}" --only-binary=:all: "av==14.2.0" || true
+  pip wheel --no-deps --wheel-dir /wheels "av==14.4.0" \
+    || echo "    WARN: av 14.4.0 build failed"
+fi
+rm -f /wheels/av-*.tar.gz 2>/dev/null || true
+
+echo ""
+echo ">>> [3c] wheel из sdist (docopt, julius, antlr4)"
+pip install --no-cache-dir wheel
+for pkg in docopt julius antlr4-python3-runtime; do
+  if compgen -G "/wheels/${pkg}-*.whl" > /dev/null; then
+    continue
+  fi
+  if compgen -G "/wheels/${pkg}-*.tar.gz" > /dev/null; then
+    pip wheel --no-deps --wheel-dir /wheels /wheels/${pkg}-*.tar.gz \
+      && rm -f /wheels/${pkg}-*.tar.gz
+  fi
+done
+
+echo ""
+echo ">>> [4/4] ctranslate2>=4.5.0"
+pip download "${pip_common[@]}" "ctranslate2>=4.5.0" || true
+
+harvest_uv_wheels
+
+count="$(find "$WHEELS" -maxdepth 1 -name "*.whl" | wc -l)"
+nvidia_count="$(find "$WHEELS" -maxdepth 1 -name "nvidia_*.whl" | wc -l)"
+echo ""
+echo "=== Готово: ${count} wheel-файлов (${nvidia_count} nvidia_*) в ${WHEELS} ==="
+du -sh "$WHEELS"
+"""
+
+
+def download_wheels(ctx: ProjectContext) -> None:
+    if not ctx.config.python_lock_paths() and not (ctx.root / "requirements.txt").is_file():
+        print("=== download-wheels: SKIP (нет pyproject.toml/uv.lock/requirements.txt) ===")
+        return
+
+    ctx.ensure_offline_dirs()
+    try:
+        current = ctx.python_deps_hash()
+    except RuntimeError:
+        current = "no-lock-files"
+
+    whl_count = len(list(ctx.wheels_dir.glob("*.whl")))
+    mount_check = ctx.wheels_dir / ".mount-check"
+    if (
+        ctx.wheels_hash_file.is_file()
+        and ctx.wheels_hash_file.read_text(encoding="utf-8").strip() == current
+        and mount_check.is_file()
+        and whl_count >= 10
+    ):
+        print(
+            f"=== download-wheels: lockfile не менялся, cache актуален ({whl_count} .whl) ==="
+        )
+        print(docker_cmd.dir_size_human(ctx.wheels_dir))
+        return
+
+    tv = ctx.config.torch_version() or ""
+    pytorch_index = os.environ.get("PYTORCH_INDEX", ctx.config.pytorch_index)
+    pypi_index = os.environ.get("PYPI_INDEX", ctx.config.pypi_index)
+    root_docker = docker_mount_path(ctx.root)
+    wheels_docker = docker_mount_path(ctx.wheels_dir)
+
+    print("=== download-wheels ===")
+    print(f"Корень:           {ctx.root}")
+    print(f"Offline cache:    {ctx.offline_cache}")
+    print(f"Каталог wheels:   {ctx.wheels_dir}")
+    print(f"torch:            {tv or '(нет)'}")
+    print(f"use_uv_export:    {ctx.config.use_uv_export}")
+    print()
+
+    prune = " ".join(ctx.config.uv_export_prune)
+    extra = "|".join(ctx.config.extra_wheel_specs)
+
+    env = [
+        f"TORCH_VERSION={tv}",
+        f"PYTORCH_INDEX={pytorch_index}",
+        f"PYPI_INDEX={pypi_index}",
+        f"USE_UV_EXPORT={'1' if ctx.config.use_uv_export else '0'}",
+        f"UV_EXPORT_PRUNE={prune}",
+        f"EXTRA_WHEEL_SPECS={extra}",
+    ]
+
+    docker_cmd.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            *[item for pair in env for item in ("-e", pair)],
+            "-v",
+            f"{root_docker}:/app:ro",
+            "-v",
+            f"{wheels_docker}:/wheels",
+            ctx.config.deb_ubuntu_image,
+            "bash",
+            "-ec",
+            WHEELS_GUEST_UV,
+        ],
+        env={"DOCKER_BUILDKIT": "0"},
+    )
+
+    if not mount_check.is_file():
+        raise SystemExit(
+            "ERROR: wheels не попали на хост - проверьте Docker mount path (D:/..., не /d/...)"
+        )
+
+    ctx.wheels_hash_file.write_text(current + "\n", encoding="utf-8")
+    print()
+    nvidia = sorted(ctx.wheels_dir.glob("nvidia_*.whl"))
+    if nvidia:
+        print("NVIDIA-пакеты на хосте:")
+        for p in nvidia:
+            print(p.name)
