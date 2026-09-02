@@ -40,6 +40,7 @@ offline-docker up-offline -p .
 | `download-debs` | Ubuntu `.deb` (+ extra repos) |
 | `download-wheels` | Python wheels |
 | `download-npm-cache` | npm `_cacache` |
+| `download-yarn-cache` | Yarn cache, если в `*Dockerfile.offline` есть `source=yarn` |
 | `download-docker-images` | `docker pull` + `save` |
 | `download-trivy-db` | Vulnerability DB Trivy |
 | `download-offline-cache` | Все download-* подряд |

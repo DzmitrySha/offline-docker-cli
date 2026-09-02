@@ -1,6 +1,6 @@
 [project]
 name = "offline-docker-cli"
-version = "1.2.3"
+version = "1.2.4"
 description = "Universal Docker offline cache, build and Trivy scan CLI for NeuroAI projects"
 readme = "README.md"
 requires-python = ">=3.11"

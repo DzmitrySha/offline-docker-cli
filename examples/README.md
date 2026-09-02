@@ -20,6 +20,7 @@ cp examples/offline-docker.json.example /path/to/your-project/.offline-docker.js
 | `docker_images` | базовые образы для `docker load` (redis, trivy и т.д.) |
 | `validate.critical_wheels` | обязательные wheel для validate |
 | `compose_up_offline_lab` | удалите, если нет `docker-compose.lab.yml` |
+| `build_services` | имена сервисов для `build-offline`: `base` (отдельная сборка) и любые ключи из merge compose |
 
 ## Проверка
 
@@ -31,6 +32,7 @@ offline-docker discover -p /path/to/your-project
 
 - **compose_build** — merge-файлы для `build-offline`
 - **compose_up_offline** — merge-файлы для `up-offline`
+- **build_services** — список для `build-offline` без аргументов: `base` + имена сервисов из compose (не только backend/frontend)
 - **compose_up_offline_lab** — то же + `docker-compose.lab.yml` (флаг `up-offline --lab`)
 
 Если `compose_up_offline` не задан, CLI использует `compose_build`.
