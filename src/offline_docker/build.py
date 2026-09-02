@@ -77,15 +77,12 @@ def build_offline(
     for svc in targets:
         if svc == "base":
             build_base_offline(ctx, no_cache=no_cache)
-        elif svc in ("backend", "frontend"):
-            compose_targets.append(svc)
         else:
-            raise SystemExit(
-                f"Неизвестный сервис: {svc} (допустимо: base, backend, frontend)"
-            )
+            compose_targets.append(svc)
 
+    uses_shared_base = "base" in ctx.config.build_services
     for svc in compose_targets:
-        if svc == "backend":
+        if svc == "backend" and uses_shared_base:
             require_base_offline(ctx)
         log_file = ctx.offline_build_log(svc)
         print(f">>> compose build {svc} -> {log_file}")
@@ -105,7 +102,9 @@ def build_offline(
         "frontend": os.environ.get("FRONTEND_IMAGE", ctx.config.images.frontend),
     }
     for svc in compose_targets:
-        _stamp_ui_project_label(image_map[svc], ctx.config.app_name)
+        image = image_map.get(svc)
+        if image:
+            _stamp_ui_project_label(image, ctx.config.app_name)
 
     print()
     print(f"=== Готово. Логи: {ctx.log_dir}/offline-build-*.log ===")
