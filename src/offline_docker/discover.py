@@ -121,7 +121,7 @@ def discover_project(root: Path) -> ProjectConfig:
     if not log_dir.parent.is_dir():
         log_dir = root / "logs"
 
-    return ProjectConfig(
+    cfg = ProjectConfig(
         root=root,
         offline_cache=root / "offline-cache",
         log_dir=log_dir,
@@ -137,8 +137,8 @@ def discover_project(root: Path) -> ProjectConfig:
         images=_guess_image_names(root, app_name, compose_online),
         critical_wheels=list(DEFAULT_CRITICAL_WHEELS),
         app_name=app_name,
-        use_uv_export=(root / "uv.lock").is_file() and (root / "pyproject.toml").is_file(),
     )
+    return cfg
 
 
 def format_discovery_report(cfg: ProjectConfig) -> str:
@@ -169,6 +169,22 @@ def format_discovery_report(cfg: ProjectConfig) -> str:
         [
             f"  torch:   {tv or '(не найден)'}",
             f"  uv export: {cfg.use_uv_export}",
+            f"  project dir: {cfg.effective_python_project_dir()}",
+            "",
+            "Yarn cache (oc source=yarn):",
+        ]
+    )
+    from offline_docker.oc_discovery import discover_yarn_cache_specs
+
+    for spec in discover_yarn_cache_specs(cfg):
+        lines.append(
+            f"  - cache={spec.cache_subdir}, archive={spec.archive_subdir}, "
+            f"arg={spec.version_arg}, dockerfile={spec.source_dockerfile}"
+        )
+    if not discover_yarn_cache_specs(cfg):
+        lines.append("  (не требуется)")
+    lines.extend(
+        [
             "",
             f"Frontend: {cfg.frontend_dir}/",
             f"  lock: {cfg.frontend_lock}",

@@ -67,6 +67,11 @@ class ProjectContext:
             self.trivy_cache_dir,
         ):
             d.mkdir(parents=True, exist_ok=True)
+        from offline_docker.oc_discovery import discover_yarn_cache_specs
+
+        for spec in discover_yarn_cache_specs(self.config):
+            (self.offline_cache / spec.cache_subdir).mkdir(parents=True, exist_ok=True)
+            (self.offline_cache / spec.archive_subdir).mkdir(parents=True, exist_ok=True)
 
     def ensure_log_dir(self) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)

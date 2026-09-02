@@ -15,6 +15,7 @@ from offline_docker.download_images import download_docker_images
 from offline_docker.download_npm import download_npm_cache
 from offline_docker.download_trivy import download_trivy_db
 from offline_docker.download_wheels import download_wheels
+from offline_docker.download_yarn import download_yarn_cache
 from offline_docker.load_images import load_docker_images
 from offline_docker.trivy_scan import scan_trivy_offline
 from offline_docker.validate import validate_offline_cache
@@ -126,6 +127,8 @@ def _download_offline_cache(ctx: ProjectContext) -> None:
     print()
     download_npm_cache(ctx)
     print()
+    download_yarn_cache(ctx)
+    print()
     download_docker_images(ctx)
     print()
     download_trivy_db(ctx)
@@ -166,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         ("download-wheels", "Download Python wheels"),
         ("download-debs", "Download .deb packages"),
         ("download-npm-cache", "Download npm cache"),
+        ("download-yarn-cache", "Download yarn cache (if *Dockerfile.offline uses source=yarn)"),
         ("download-docker-images", "docker pull + save base images"),
         ("download-trivy-db", "Download Trivy vulnerability DB"),
         ("download-offline-cache", "Run all download-* commands"),
@@ -249,6 +253,7 @@ def main(argv: list[str] | None = None) -> int:
         "download-wheels": lambda: download_wheels(ctx),
         "download-debs": lambda: download_debs(ctx),
         "download-npm-cache": lambda: download_npm_cache(ctx),
+        "download-yarn-cache": lambda: download_yarn_cache(ctx),
         "download-docker-images": lambda: download_docker_images(ctx),
         "download-trivy-db": lambda: download_trivy_db(ctx),
         "download-offline-cache": lambda: _download_offline_cache(ctx),

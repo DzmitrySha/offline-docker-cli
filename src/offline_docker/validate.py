@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from offline_docker.context import ProjectContext
+from offline_docker.oc_discovery import archive_tar_path, discover_yarn_cache_specs
 from offline_docker.utils import file_sha256
 
 
@@ -136,6 +137,51 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
             errors += 1
     else:
         print("SKIP: npm cache (нет frontend lockfile)")
+
+    yarn_specs = discover_yarn_cache_specs(cfg)
+    if yarn_specs:
+        for spec in yarn_specs:
+            cache_dir = ctx.offline_cache / spec.cache_subdir
+            archive_tar = archive_tar_path(cfg, spec)
+            check_dir(cache_dir, spec.cache_subdir)
+            check_dir(archive_tar.parent, spec.archive_subdir)
+            if archive_tar.is_file():
+                print(f"OK: {spec.archive_subdir} archive -> {archive_tar.name}")
+            else:
+                print(
+                    f"ERROR: нет {archive_tar.name} - выполните download-yarn-cache",
+                    flush=True,
+                )
+                errors += 1
+
+            yarn_hash = cache_dir / f".{spec.archive_subdir}.sha256"
+            if (cache_dir / ".mount-check").is_file():
+                print(f"OK: {spec.cache_subdir}/.mount-check")
+            else:
+                print(
+                    f"ERROR: {spec.cache_subdir}/.mount-check отсутствует - выполните download-yarn-cache",
+                    flush=True,
+                )
+                errors += 1
+            if yarn_hash.is_file() and archive_tar.is_file():
+                current = file_sha256(archive_tar)
+                stored = yarn_hash.read_text(encoding="utf-8").strip()
+                if current == stored:
+                    print(f"OK: {spec.cache_subdir} cache соответствует {archive_tar.name}")
+                else:
+                    print(
+                        f"ERROR: archive изменился - выполните download-yarn-cache",
+                        flush=True,
+                    )
+                    errors += 1
+            else:
+                print(
+                    f"ERROR: нет {spec.cache_subdir}/.{spec.archive_subdir}.sha256 - выполните download-yarn-cache",
+                    flush=True,
+                )
+                errors += 1
+    else:
+        print("SKIP: yarn cache (нет source=yarn в *Dockerfile.offline)")
 
     tar_count = len(list(ctx.docker_cache_dir.glob("*.tar")))
     if tar_count >= 1:
