@@ -79,6 +79,78 @@ class LoadConfigImagesTest(unittest.TestCase):
             self.assertEqual(cfg.uv_export_prune, ["torch", "neuralprophet"])
             self.assertEqual(cfg.extra_wheel_specs, ["neuralprophet[live]==0.9.0"])
 
+    def test_build_services_arbitrary_compose_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docker-compose.yml").write_text("name: test\n", encoding="utf-8")
+            cfg_path = root / ".offline-docker.json"
+            cfg_path.write_text(
+                json.dumps(
+                    {
+                        "build_services": [
+                            "base",
+                            "backend",
+                            "frontend",
+                            "worker",
+                            "ocr-server",
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            cfg = load_config(root, config_file=cfg_path)
+            self.assertEqual(
+                cfg.build_services,
+                ["base", "backend", "frontend", "worker", "ocr-server"],
+            )
+
+    def test_python_project_dir_from_lock_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            backend = root / "backend"
+            backend.mkdir()
+            (backend / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+            (backend / "uv.lock").write_text("", encoding="utf-8")
+            (root / "docker-compose.yml").write_text("name: test\n", encoding="utf-8")
+            cfg_path = root / ".offline-docker.json"
+            cfg_path.write_text(
+                json.dumps(
+                    {
+                        "python": {
+                            "lock_files": [
+                                "backend/pyproject.toml",
+                                "backend/uv.lock",
+                            ]
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            cfg = load_config(root, config_file=cfg_path)
+            self.assertEqual(cfg.effective_python_project_dir(), "backend")
+            self.assertTrue(cfg.use_uv_export)
+
+    def test_python_project_dir_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+            (root / "uv.lock").write_text("", encoding="utf-8")
+            (root / "docker-compose.yml").write_text("name: test\n", encoding="utf-8")
+            cfg = load_config(root)
+            self.assertEqual(cfg.effective_python_project_dir(), ".")
+            self.assertTrue(cfg.use_uv_export)
+
+    def test_use_uv_export_respects_explicit_false(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "pyproject.toml").write_text("[project]\n", encoding="utf-8")
+            (root / "uv.lock").write_text("", encoding="utf-8")
+            (root / "docker-compose.yml").write_text("name: test\n", encoding="utf-8")
+            cfg_path = root / ".offline-docker.json"
+            cfg_path.write_text(json.dumps({"use_uv_export": False}), encoding="utf-8")
+            cfg = load_config(root, config_file=cfg_path)
+            self.assertFalse(cfg.use_uv_export)
+
 
 if __name__ == "__main__":
     unittest.main()

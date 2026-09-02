@@ -85,6 +85,9 @@ class ProjectConfig:
     app_name: str = "app"
     node_image: str = "node:22-bookworm-slim"
     use_uv_export: bool = True
+    explicit_use_uv_export: bool = field(default=False, repr=False)
+    explicit_python_project_dir: bool = field(default=False, repr=False)
+    python_project_dir: str | None = None
     uv_export_prune: list[str] = field(
         default_factory=lambda: ["torch", "torchaudio"]
     )
@@ -145,6 +148,53 @@ class ProjectConfig:
             return read_torch_version(tv_file)
         except RuntimeError:
             return None
+
+    @staticmethod
+    def _normalize_project_dir(rel: str) -> str:
+        d = rel.strip().strip("/")
+        return "." if not d else d
+
+    def infer_python_project_dir(self) -> str:
+        pyproject_dirs: list[str] = []
+        uv_lock_dirs: list[str] = []
+        for rel in self.python_lock_files:
+            p = Path(rel)
+            if not self.path(rel).is_file():
+                continue
+            parent = self._normalize_project_dir(
+                "." if p.parent == Path(".") else p.parent.as_posix()
+            )
+            if p.name == "pyproject.toml":
+                pyproject_dirs.append(parent)
+            elif p.name == "uv.lock":
+                uv_lock_dirs.append(parent)
+
+        if pyproject_dirs and uv_lock_dirs:
+            common = set(pyproject_dirs) & set(uv_lock_dirs)
+            if common:
+                return min(common, key=len)
+            return pyproject_dirs[0]
+        if pyproject_dirs:
+            return pyproject_dirs[0]
+
+        for dockerfile in (self.dockerfiles.backend_offline, self.dockerfiles.backend):
+            parent = Path(dockerfile).parent
+            if parent != Path(".") and self.path(str(parent / "pyproject.toml")).is_file():
+                return self._normalize_project_dir(parent.as_posix())
+
+        if self.path("pyproject.toml").is_file():
+            return "."
+        return "."
+
+    def effective_python_project_dir(self) -> str:
+        if self.python_project_dir is not None:
+            return self._normalize_project_dir(self.python_project_dir)
+        return self.infer_python_project_dir()
+
+    def infer_use_uv_export(self) -> bool:
+        proj = self.effective_python_project_dir()
+        base = self.root if proj == "." else self.root / proj
+        return (base / "uv.lock").is_file() and (base / "pyproject.toml").is_file()
 
 
 def _load_yaml_or_json(path: Path) -> dict[str, Any]:
@@ -223,9 +273,13 @@ def _merge_config_dict(base: ProjectConfig, data: dict[str, Any]) -> ProjectConf
         base.node_image = str(data["node_image"])
     if "use_uv_export" in data:
         base.use_uv_export = bool(data["use_uv_export"])
+        base.explicit_use_uv_export = True
 
     py = data.get("python", {})
     if isinstance(py, dict):
+        if "project_dir" in py:
+            base.python_project_dir = str(py["project_dir"])
+            base.explicit_python_project_dir = True
         if "lock_files" in py:
             base.python_lock_files = [str(x) for x in py["lock_files"]]
         if "torch_version_file" in py:
@@ -367,5 +421,12 @@ def load_config(
         cfg.docker_images = list(DEFAULT_DOCKER_IMAGES)
     if not cfg.critical_wheels:
         cfg.critical_wheels = list(DEFAULT_CRITICAL_WHEELS)
+
+    if not cfg.explicit_python_project_dir:
+        cfg.python_project_dir = cfg.infer_python_project_dir()
+    elif cfg.python_project_dir is None:
+        cfg.python_project_dir = cfg.infer_python_project_dir()
+    if not cfg.explicit_use_uv_export:
+        cfg.use_uv_export = cfg.infer_use_uv_export()
 
     return cfg

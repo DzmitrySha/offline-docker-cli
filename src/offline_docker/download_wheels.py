@@ -32,6 +32,7 @@ PYTORCH_INDEX="${PYTORCH_INDEX}"
 PYPI_INDEX="${PYPI_INDEX}"
 TORCH_VERSION="${TORCH_VERSION}"
 USE_UV="${USE_UV_EXPORT}"
+UV_PROJECT_DIR="${UV_PROJECT_DIR:-.}"
 # Кэш uv — только внутри контейнера (bind-mount Windows ломает atomic rename в .uv-cache)
 UV_CACHE_DIR="/tmp/uv-cache"
 export UV_CACHE_DIR
@@ -96,7 +97,7 @@ done
 if [[ "$USE_UV" == "1" ]]; then
   echo ""
   echo ">>> [3/4] uv export deps (prune: ${UV_EXPORT_PRUNE})"
-  cd /app
+  cd "/app/${UV_PROJECT_DIR}"
   prune_args=()
   for pkg in ${UV_EXPORT_PRUNE}; do
     prune_args+=(--prune "$pkg")
@@ -169,11 +170,15 @@ def download_wheels(ctx: ProjectContext) -> None:
 
     whl_count = len(list(ctx.wheels_dir.glob("*.whl")))
     mount_check = ctx.wheels_dir / ".mount-check"
+    critical_ok = all(
+        any(ctx.wheels_dir.glob(wp.pattern)) for wp in ctx.config.critical_wheels
+    )
     if (
         ctx.wheels_hash_file.is_file()
         and ctx.wheels_hash_file.read_text(encoding="utf-8").strip() == current
         and mount_check.is_file()
         and whl_count >= 10
+        and critical_ok
     ):
         print(
             f"=== download-wheels: lockfile не менялся, cache актуален ({whl_count} .whl) ==="
@@ -193,16 +198,19 @@ def download_wheels(ctx: ProjectContext) -> None:
     print(f"Каталог wheels:   {ctx.wheels_dir}")
     print(f"torch:            {tv or '(нет)'}")
     print(f"use_uv_export:    {ctx.config.use_uv_export}")
+    print(f"python project:   {ctx.config.effective_python_project_dir()}")
     print()
 
     prune = " ".join(ctx.config.uv_export_prune)
     extra = "|".join(ctx.config.extra_wheel_specs)
+    project_dir = ctx.config.effective_python_project_dir()
 
     env = [
         f"TORCH_VERSION={tv}",
         f"PYTORCH_INDEX={pytorch_index}",
         f"PYPI_INDEX={pypi_index}",
         f"USE_UV_EXPORT={'1' if ctx.config.use_uv_export else '0'}",
+        f"UV_PROJECT_DIR={project_dir}",
         f"UV_EXPORT_PRUNE={prune}",
         f"EXTRA_WHEEL_SPECS={extra}",
     ]
