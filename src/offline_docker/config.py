@@ -63,6 +63,7 @@ class ProjectConfig:
     compose_up_offline_lab: list[str] = field(default_factory=list)
     compose_offline: str = "docker-compose.offline.yml"
     compose_online: str = "docker-compose.yml"
+    compose_env_file: str | None = None
     frontend_dir: str = "frontend"
     frontend_lock: str = "package-lock.json"
     python_lock_files: list[str] = field(
@@ -118,6 +119,15 @@ class ProjectConfig:
         for rel in files:
             args.extend(["-f", rel])
         return args
+
+    def compose_env_file_args(self) -> list[str]:
+        """`--env-file` для подстановки ${VAR} в compose (если задан в конфиге)."""
+        if not self.compose_env_file:
+            return []
+        path = self.path(self.compose_env_file)
+        if not path.is_file():
+            return []
+        return ["--env-file", self.compose_env_file]
 
     def compose_up_file_args(self, *, lab: bool = False) -> list[str]:
         """`-f` args для offline runtime (up-offline)."""
@@ -267,6 +277,8 @@ def _merge_config_dict(base: ProjectConfig, data: dict[str, Any]) -> ProjectConf
         base.compose_up_offline = [str(x) for x in data["compose_up_offline"]]
     if "compose_up_offline_lab" in data:
         base.compose_up_offline_lab = [str(x) for x in data["compose_up_offline_lab"]]
+    if "compose_env_file" in data:
+        base.compose_env_file = str(data["compose_env_file"])
     if "app_name" in data:
         base.app_name = str(data["app_name"])
     if "node_image" in data:

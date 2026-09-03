@@ -11,6 +11,7 @@ from offline_docker import docker_cmd
 from offline_docker.context import ProjectContext
 from offline_docker.download_npm import download_npm_cache
 from offline_docker.download_wheels import download_wheels
+from offline_docker.download_yarn import download_yarn_cache
 from offline_docker.ensure_base import build_base_offline, require_base_offline
 from offline_docker.load_images import load_docker_images
 from offline_docker.validate import validate_offline_cache
@@ -57,6 +58,7 @@ def build_offline(
 
     ctx.set_offline_cache_env()
     compose_args = ctx.config.compose_build_file_args()
+    env_file_args = ctx.config.compose_env_file_args()
 
     print("=== build-offline ===")
     print(f"Project:       {ctx.root}")
@@ -70,6 +72,7 @@ def build_offline(
 
     download_wheels(ctx)
     download_npm_cache(ctx)
+    download_yarn_cache(ctx)
     validate_offline_cache(ctx)
     load_docker_images(ctx)
 
@@ -86,7 +89,7 @@ def build_offline(
             require_base_offline(ctx)
         log_file = ctx.offline_build_log(svc)
         print(f">>> compose build {svc} -> {log_file}")
-        build_cmd = ["docker", "compose", *compose_args, "build"]
+        build_cmd = ["docker", "compose", *env_file_args, *compose_args, "build"]
         if no_cache:
             build_cmd.append("--no-cache")
         build_cmd.append(svc)
@@ -152,6 +155,7 @@ def up_offline(
 ) -> None:
     ctx.set_offline_cache_env()
     compose_args = ctx.config.compose_up_file_args(lab=lab)
+    env_file_args = ctx.config.compose_env_file_args()
 
     print("=== up-offline ===")
     print(f"Project: {ctx.root}")
@@ -166,13 +170,13 @@ def up_offline(
     _ensure_traefik_network()
 
     if no_cache and not no_build:
-        build_cmd = ["docker", "compose", *compose_args, "build", "--no-cache"]
+        build_cmd = ["docker", "compose", *env_file_args, *compose_args, "build", "--no-cache"]
         if services:
             build_cmd.extend(services)
         docker_cmd.run(build_cmd, cwd=ctx.root, env={"DOCKER_BUILDKIT": "1"})
         no_build = True
 
-    cmd = ["docker", "compose", *compose_args, "up", "-d"]
+    cmd = ["docker", "compose", *env_file_args, *compose_args, "up", "-d"]
     if no_build:
         cmd.append("--no-build")
     if no_deps:
