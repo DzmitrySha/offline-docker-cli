@@ -41,6 +41,9 @@ def build_base_offline_cmd(ctx: ProjectContext, *, no_cache: bool = False) -> No
     print(f"Image:         {image}")
     print()
 
+    from offline_docker.sync_cache import maybe_materialize
+
+    maybe_materialize(ctx)
     download_wheels(ctx)
     validate_offline_cache(ctx)
     load_docker_images(ctx)
@@ -70,6 +73,9 @@ def build_offline(
         print("No-cache:      да")
     print()
 
+    from offline_docker.sync_cache import maybe_materialize
+
+    maybe_materialize(ctx)
     download_wheels(ctx)
     download_npm_cache(ctx)
     download_yarn_cache(ctx)

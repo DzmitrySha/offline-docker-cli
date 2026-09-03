@@ -14,7 +14,11 @@ if [[ ! -f package-lock.json ]]; then
   exit 1
 fi
 npm config set cache /npm-cache
-npm config set registry https://registry.npmjs.org/
+npm config set registry "${NPM_REGISTRY}"
+# HTTP corporate registries (e.g. Nexus without TLS)
+case "${NPM_REGISTRY}" in
+  http://*) npm config set strict-ssl false ;;
+esac
 npm ci --no-audit --no-fund
 echo "mount-check-$(date +%s)" > /npm-cache/.mount-check
 """
@@ -41,6 +45,13 @@ def download_npm_cache(ctx: ProjectContext) -> None:
         print(docker_cmd.dir_size_human(ctx.npm_cache_dir))
         return
 
+    from offline_docker.sync_cache import maybe_materialize
+
+    maybe_materialize(ctx)
+
+    resolver = ctx.config.package_resolver()
+    registry = resolver.primary_npm_registry() or "https://registry.npmjs.org/"
+
     frontend_docker = docker_mount_path(fe)
     npm_docker = docker_mount_path(ctx.npm_cache_dir)
 
@@ -48,12 +59,16 @@ def download_npm_cache(ctx: ProjectContext) -> None:
     print(f"Frontend:       {fe}")
     print(f"npm cache dir:  {ctx.npm_cache_dir}")
     print(f"Node image:     {ctx.config.node_image}")
+    print(f"Resolve:        {' -> '.join(resolver.settings.resolve.order)}")
+    print(f"npm registry:   {registry}")
 
     docker_cmd.run(
         [
             "docker",
             "run",
             "--rm",
+            "-e",
+            f"NPM_REGISTRY={registry}",
             "-v",
             f"{frontend_docker}:/app-src:ro",
             "-v",
@@ -72,3 +87,8 @@ def download_npm_cache(ctx: ProjectContext) -> None:
     print()
     print(f"=== Готово: npm cache в {ctx.npm_cache_dir} ===")
     print(docker_cmd.dir_size_human(ctx.npm_cache_dir))
+
+    if resolver.settings.resolve.fill_local:
+        from offline_docker.sync_cache import publish_to_remotes
+
+        publish_to_remotes(ctx)

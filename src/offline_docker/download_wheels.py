@@ -49,13 +49,30 @@ harvest_uv_wheels() {
   find "$UV_CACHE_DIR" -type f -name "*.whl" -exec cp -un {} "$WHEELS"/ \; 2>/dev/null || true
 }
 
+# PIP_INDEX_ARGS: space-separated --index-url/--extra-index-url from resolver
+# shellcheck disable=SC2206
+pip_index_args=( ${PIP_INDEX_ARGS} )
+
+# Allow HTTP corporate indexes (Nexus without TLS)
+for ((i=0; i<${#pip_index_args[@]}; i++)); do
+  arg="${pip_index_args[$i]}"
+  if [[ "$arg" == --index-url || "$arg" == --extra-index-url ]]; then
+    url="${pip_index_args[$((i+1))]:-}"
+    case "$url" in
+      http://*)
+        host="$(echo "$url" | sed -E 's#^https?://([^/:]+).*#\1#')"
+        pip_index_args+=(--trusted-host "$host")
+        ;;
+    esac
+  fi
+done
+
 pip_common=(
   --dest "$WHEELS"
   --prefer-binary
   --ignore-requires-python
-  --index-url "$PYPI_INDEX"
-  --extra-index-url "$PYTORCH_INDEX"
   --find-links "$WHEELS"
+  "${pip_index_args[@]}"
 )
 
 echo ""
@@ -69,21 +86,12 @@ if [[ -n "$TORCH_VERSION" ]]; then
      && compgen -G "${WHEELS}/nvidia_cublas_cu12*.whl" > /dev/null; then
     echo "    torch cu128 и nvidia-* уже в wheels/, пропуск"
   else
-    pip download "${pip_common[@]}" \
-      --index-url "$PYTORCH_INDEX" \
-      --extra-index-url "$PYPI_INDEX" \
-      "torch==${TORCH_VERSION}"
+    pip download "${pip_common[@]}" "torch==${TORCH_VERSION}"
   fi
 
   echo ""
   echo ">>> [2b] torchaudio==${TORCH_VERSION}"
-  pip download \
-    --dest "$WHEELS" \
-    --prefer-binary \
-    --index-url "$PYTORCH_INDEX" \
-    --extra-index-url "$PYPI_INDEX" \
-    --find-links "$WHEELS" \
-    "torchaudio==${TORCH_VERSION}"
+  pip download "${pip_common[@]}" "torchaudio==${TORCH_VERSION}"
 fi
 
 IFS="|" read -ra _extra_specs <<< "${EXTRA_WHEEL_SPECS}"
@@ -189,6 +197,27 @@ def download_wheels(ctx: ProjectContext) -> None:
     tv = ctx.config.torch_version() or ""
     pytorch_index = os.environ.get("PYTORCH_INDEX", ctx.config.pytorch_index)
     pypi_index = os.environ.get("PYPI_INDEX", ctx.config.pypi_index)
+    resolver = ctx.config.package_resolver()
+    chain = list(resolver.pypi_index_chain())
+    # Legacy env / config indexes when no remote sources configured
+    if not chain:
+        chain = [pypi_index, pytorch_index]
+    else:
+        if pytorch_index and pytorch_index.rstrip("/") not in {
+            u.rstrip("/") for u in chain
+        }:
+            chain.append(pytorch_index)
+    # PYPI_INDEX env forces first index when set explicitly
+    if os.environ.get("PYPI_INDEX"):
+        chain = [pypi_index] + [u for u in chain if u.rstrip("/") != pypi_index.rstrip("/")]
+
+    pip_index_args: list[str] = []
+    if chain:
+        pip_index_args.extend(["--index-url", chain[0]])
+        for url in chain[1:]:
+            pip_index_args.extend(["--extra-index-url", url])
+    pip_index_args_str = " ".join(pip_index_args)
+
     root_docker = docker_mount_path(ctx.root)
     wheels_docker = docker_mount_path(ctx.wheels_dir)
 
@@ -199,7 +228,13 @@ def download_wheels(ctx: ProjectContext) -> None:
     print(f"torch:            {tv or '(нет)'}")
     print(f"use_uv_export:    {ctx.config.use_uv_export}")
     print(f"python project:   {ctx.config.effective_python_project_dir()}")
+    print(f"Resolve:          {' -> '.join(resolver.settings.resolve.order)}")
+    print(f"PyPI chain:       {' -> '.join(chain) if chain else '(find-links only)'}")
     print()
+
+    from offline_docker.sync_cache import maybe_materialize
+
+    maybe_materialize(ctx)
 
     prune = " ".join(ctx.config.uv_export_prune)
     extra = "|".join(ctx.config.extra_wheel_specs)
@@ -208,7 +243,8 @@ def download_wheels(ctx: ProjectContext) -> None:
     env = [
         f"TORCH_VERSION={tv}",
         f"PYTORCH_INDEX={pytorch_index}",
-        f"PYPI_INDEX={pypi_index}",
+        f"PYPI_INDEX={chain[0] if chain else pypi_index}",
+        f"PIP_INDEX_ARGS={pip_index_args_str}",
         f"USE_UV_EXPORT={'1' if ctx.config.use_uv_export else '0'}",
         f"UV_PROJECT_DIR={project_dir}",
         f"UV_EXPORT_PRUNE={prune}",
@@ -245,3 +281,8 @@ def download_wheels(ctx: ProjectContext) -> None:
         print("NVIDIA-пакеты на хосте:")
         for p in nvidia:
             print(p.name)
+
+    if resolver.settings.resolve.fill_local:
+        from offline_docker.sync_cache import publish_to_remotes
+
+        publish_to_remotes(ctx)

@@ -14,6 +14,7 @@ from offline_docker.defaults import (
     DEFAULT_DOCKER_IMAGES,
     WheelPattern,
 )
+from offline_docker.resolve import CacheSettings, PackageResolver, default_local_only
 from offline_docker.utils import read_torch_version
 
 
@@ -94,9 +95,16 @@ class ProjectConfig:
     )
     extra_wheel_specs: list[str] = field(default_factory=list)
     config_source: str | None = None
+    # Raw project "cache" section if present (wins over user-config).
+    project_cache_data: dict[str, Any] | None = field(default=None, repr=False)
+    cache_settings: CacheSettings = field(default_factory=default_local_only)
+    cache_config_origin: str = "default"
 
     def path(self, rel: str) -> Path:
         return self.root / rel
+
+    def package_resolver(self) -> PackageResolver:
+        return PackageResolver(self.cache_settings)
 
     def python_lock_paths(self) -> list[Path]:
         return [self.path(f) for f in self.python_lock_files if self.path(f).is_file()]
@@ -373,7 +381,99 @@ def _merge_config_dict(base: ProjectConfig, data: dict[str, Any]) -> ProjectConf
     if "build_services" in data:
         base.build_services = [str(x) for x in data["build_services"]]
 
+    if "cache" in data and isinstance(data["cache"], dict):
+        base.project_cache_data = dict(data["cache"])
+
     return base
+
+
+def project_config_to_dict(cfg: ProjectConfig) -> dict[str, Any]:
+    """Serialize ProjectConfig to .offline-docker.json shape (example schema)."""
+    offline_cache = cfg.offline_cache
+    if offline_cache.is_absolute():
+        try:
+            offline_cache_rel = offline_cache.relative_to(cfg.root).as_posix()
+        except ValueError:
+            offline_cache_rel = str(offline_cache)
+    else:
+        offline_cache_rel = Path(offline_cache).as_posix()
+
+    log_dir = cfg.log_dir
+    if log_dir.is_absolute():
+        try:
+            log_dir_rel = log_dir.relative_to(cfg.root).as_posix()
+        except ValueError:
+            log_dir_rel = str(log_dir)
+    else:
+        log_dir_rel = Path(log_dir).as_posix()
+
+    data: dict[str, Any] = {
+        "offline_cache": offline_cache_rel,
+        "log_dir": log_dir_rel,
+        "app_name": cfg.app_name,
+        "compose_online": cfg.compose_online,
+        "compose_offline": cfg.compose_offline,
+        "compose_build": cfg.compose_build
+        or [cfg.compose_online, cfg.compose_offline],
+        "compose_up_offline": cfg.compose_up_offline
+        or [cfg.compose_online, cfg.compose_offline],
+        "python": {
+            "lock_files": list(cfg.python_lock_files),
+            "torch_version_file": cfg.torch_version_file,
+            "pytorch_index": cfg.pytorch_index,
+        },
+        "frontend": {
+            "dir": cfg.frontend_dir,
+            "lock_file": cfg.frontend_lock,
+        },
+        "dockerfiles": {
+            "base": cfg.dockerfiles.base,
+            "base_offline": cfg.dockerfiles.base_offline,
+            "backend": cfg.dockerfiles.backend,
+            "backend_offline": cfg.dockerfiles.backend_offline,
+            "frontend": cfg.dockerfiles.frontend,
+            "frontend_offline": cfg.dockerfiles.frontend_offline,
+        },
+        "images": {
+            "base": cfg.images.base,
+            "backend": cfg.images.backend,
+            "frontend": cfg.images.frontend,
+        },
+        "debs": {
+            "ubuntu_image": cfg.deb_ubuntu_image,
+            "packages": list(cfg.deb_packages),
+            "extra_repos": [
+                {
+                    "name": r.name,
+                    "gpg_url": r.gpg_url,
+                    "list_url": r.list_url,
+                    "gpg_dest": r.gpg_dest,
+                    "list_dest": r.list_dest,
+                }
+                for r in cfg.deb_extra_repos
+            ],
+        },
+        "docker_images": list(cfg.docker_images),
+        "validate": {
+            "critical_wheels": [
+                {"pattern": w.pattern, "label": w.label} for w in cfg.critical_wheels
+            ]
+        },
+        "trivy": {
+            "scanner_image": cfg.trivy.scanner_image,
+            "db_max_age_days": cfg.trivy.db_max_age_days,
+            "severity": cfg.trivy.severity,
+            "scanners": cfg.trivy.scanners,
+        },
+        "build_services": list(cfg.build_services),
+    }
+    if cfg.compose_up_offline_lab:
+        data["compose_up_offline_lab"] = list(cfg.compose_up_offline_lab)
+    if cfg.python_project_dir and cfg.python_project_dir != ".":
+        data["python"]["project_dir"] = cfg.python_project_dir
+    if cfg.compose_env_file:
+        data["compose_env_file"] = cfg.compose_env_file
+    return data
 
 
 def find_project_config_file(root: Path) -> Path | None:
@@ -440,5 +540,17 @@ def load_config(
         cfg.python_project_dir = cfg.infer_python_project_dir()
     if not cfg.explicit_use_uv_export:
         cfg.use_uv_export = cfg.infer_use_uv_export()
+
+    from offline_docker.resolve import merge_cache_settings
+    from offline_docker.user_config import load_user_sources
+
+    user_data = load_user_sources()
+    cfg.cache_settings = merge_cache_settings(
+        user_data=user_data,
+        project_data=cfg.project_cache_data,
+        pypi_index=cfg.pypi_index,
+        pytorch_index=cfg.pytorch_index,
+    )
+    cfg.cache_config_origin = cfg.cache_settings.cache_config_origin
 
     return cfg

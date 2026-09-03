@@ -23,12 +23,21 @@ cp /apt-meta/{gpg_name} /usr/share/keyrings/{gpg_name}
 cp /apt-meta/{list_name} /etc/apt/sources.list.d/{list_name}
 apt-get update
 """
+    # Optional apt mirrors from package resolver (ProGet deb / Nexus apt)
+    apt_mirror_script = ""
+    for i, mirror in enumerate(ctx.config.package_resolver().apt_mirrors()):
+        # Best-effort: prepend as extra signed-by-less list (corp mirrors vary)
+        apt_mirror_script += f"""
+echo ">>> Apt mirror from sources[{i}]: {mirror}"
+echo "deb [trusted=yes] {mirror} ./" > /etc/apt/sources.list.d/od-mirror-{i}.list
+"""
     return f"""
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl gnupg
+{apt_mirror_script}
 {extra_repo_script}
 echo "ok-$(date +%s)" > /apt-meta/.ready
 
@@ -72,14 +81,22 @@ rm -rf /var/lib/apt/lists/*
 
 def download_debs(ctx: ProjectContext) -> None:
     ctx.ensure_offline_dirs()
+    from offline_docker.sync_cache import maybe_materialize
+
+    maybe_materialize(ctx)
+
     debs_docker = docker_mount_path(ctx.debs_dir)
     apt_meta_docker = docker_mount_path(ctx.apt_meta_dir)
+    resolver = ctx.config.package_resolver()
 
     print("=== download-debs ===")
     print(f"Корень:           {ctx.root}")
     print(f"Offline cache:    {ctx.offline_cache}")
     print(f"Ubuntu image:     {ctx.config.deb_ubuntu_image}")
     print(f"Пакетов (seed):   {len(ctx.config.deb_packages)}")
+    mirrors = resolver.apt_mirrors()
+    if mirrors:
+        print(f"Apt mirrors:      {', '.join(mirrors)}")
     print()
 
     docker_cmd.run(
@@ -98,6 +115,11 @@ def download_debs(ctx: ProjectContext) -> None:
         ],
         env={"DOCKER_BUILDKIT": "0"},
     )
+
+    if resolver.settings.resolve.fill_local:
+        from offline_docker.sync_cache import publish_to_remotes
+
+        publish_to_remotes(ctx)
 
     if not (ctx.apt_meta_dir / ".ready").is_file():
         raise SystemExit(

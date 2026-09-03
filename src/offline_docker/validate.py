@@ -12,30 +12,37 @@ from offline_docker.utils import file_sha256
 def validate_offline_cache(ctx: ProjectContext) -> None:
     errors = 0
     cfg = ctx.config
+    resolver = cfg.package_resolver()
+    soft = resolver.settings.resolve.on_miss == "warn" and not resolver.is_local_only()
+
+    def fail(msg: str) -> None:
+        nonlocal errors
+        if soft:
+            print(f"WARN: {msg}", flush=True)
+        else:
+            print(f"ERROR: {msg}", flush=True)
+            errors += 1
 
     def check_dir(d: Path, name: str) -> None:
-        nonlocal errors
         if not d.is_dir():
-            print(f"ERROR: нет каталога {name} ({d})", flush=True)
-            errors += 1
+            fail(f"нет каталога {name} ({d})")
             return
         print(f"OK: {name} -> {d}")
 
     def check_min_files(d: Path, pattern: str, minimum: int, label: str) -> None:
-        nonlocal errors
         count = len(list(d.glob(pattern)))
         if count < minimum:
-            print(
-                f"ERROR: {label} - найдено {count} (минимум {minimum}) в {d}",
-                flush=True,
-            )
-            errors += 1
+            fail(f"{label} - найдено {count} (минимум {minimum}) в {d}")
         else:
             print(f"OK: {label} - {count} файлов")
 
     print("=== validate-offline-cache ===")
     print(f"Project:       {ctx.root}")
     print(f"OFFLINE_CACHE: {ctx.offline_cache}")
+    print(f"Resolve:       {' -> '.join(resolver.settings.resolve.order)}")
+    print(f"on_miss:       {resolver.settings.resolve.on_miss}")
+    if soft:
+        print("Mode:          soft (WARN instead of ERROR when remotes configured)")
     print()
 
     has_python = bool(cfg.python_lock_paths()) or (ctx.root / "requirements.txt").is_file()
@@ -50,11 +57,7 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
         if (ctx.wheels_dir / ".mount-check").is_file():
             print("OK: wheels/.mount-check")
         else:
-            print(
-                "ERROR: wheels/.mount-check отсутствует - выполните download-wheels",
-                flush=True,
-            )
-            errors += 1
+            fail("wheels/.mount-check отсутствует - выполните download-wheels")
 
         if ctx.wheels_hash_file.is_file():
             try:
@@ -64,30 +67,18 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
                     lock_names = ", ".join(cfg.python_lock_files)
                     print(f"OK: wheels cache соответствует {lock_names}")
                 else:
-                    print(
-                        "ERROR: Python lockfile изменился - выполните download-wheels",
-                        flush=True,
-                    )
-                    errors += 1
+                    fail("Python lockfile изменился - выполните download-wheels")
             except RuntimeError:
                 pass
         else:
-            print(
-                "ERROR: нет wheels/.deps.sha256 - выполните download-wheels",
-                flush=True,
-            )
-            errors += 1
+            fail("нет wheels/.deps.sha256 - выполните download-wheels")
 
         check_min_files(ctx.wheels_dir, "*.whl", 1, "Python wheels")
         for wp in cfg.critical_wheels:
             if list(ctx.wheels_dir.glob(wp.pattern)):
                 print(f"OK: wheel {wp.label}")
             else:
-                print(
-                    f"ERROR: нет {wp.pattern} - выполните download-wheels",
-                    flush=True,
-                )
-                errors += 1
+                fail(f"нет {wp.pattern} - выполните download-wheels")
     else:
         print("SKIP: Python wheels (нет lockfile)")
 
@@ -99,21 +90,13 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
         if gpg.is_file() and lst.is_file():
             print(f"OK: apt-meta/{repo.name}")
         else:
-            print(
-                f"ERROR: нет apt-meta для {repo.name} - выполните download-debs",
-                flush=True,
-            )
-            errors += 1
+            fail(f"нет apt-meta для {repo.name} - выполните download-debs")
 
     if has_frontend:
         if (ctx.npm_cache_dir / "_cacache").is_dir():
             print("OK: npm/_cacache")
         else:
-            print(
-                "ERROR: нет npm/_cacache - выполните download-npm-cache",
-                flush=True,
-            )
-            errors += 1
+            fail("нет npm/_cacache - выполните download-npm-cache")
 
         npm_hash = ctx.npm_cache_dir / ".package-lock.sha256"
         lock = cfg.frontend_lock_path()
@@ -124,17 +107,9 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
             if current == stored:
                 print(f"OK: npm cache соответствует {cfg.frontend_dir}/{cfg.frontend_lock}")
             else:
-                print(
-                    "ERROR: package-lock.json изменился - выполните download-npm-cache",
-                    flush=True,
-                )
-                errors += 1
+                fail("package-lock.json изменился - выполните download-npm-cache")
         else:
-            print(
-                "ERROR: нет npm/.package-lock.sha256 - выполните download-npm-cache",
-                flush=True,
-            )
-            errors += 1
+            fail("нет npm/.package-lock.sha256 - выполните download-npm-cache")
     else:
         print("SKIP: npm cache (нет frontend lockfile)")
 
@@ -148,38 +123,26 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
             if archive_tar.is_file():
                 print(f"OK: {spec.archive_subdir} archive -> {archive_tar.name}")
             else:
-                print(
-                    f"ERROR: нет {archive_tar.name} - выполните download-yarn-cache",
-                    flush=True,
-                )
-                errors += 1
+                fail(f"нет {archive_tar.name} - выполните download-yarn-cache")
 
             yarn_hash = cache_dir / f".{spec.archive_subdir}.sha256"
             if (cache_dir / ".mount-check").is_file():
                 print(f"OK: {spec.cache_subdir}/.mount-check")
             else:
-                print(
-                    f"ERROR: {spec.cache_subdir}/.mount-check отсутствует - выполните download-yarn-cache",
-                    flush=True,
+                fail(
+                    f"{spec.cache_subdir}/.mount-check отсутствует - выполните download-yarn-cache"
                 )
-                errors += 1
             if yarn_hash.is_file() and archive_tar.is_file():
                 current = file_sha256(archive_tar)
                 stored = yarn_hash.read_text(encoding="utf-8").strip()
                 if current == stored:
                     print(f"OK: {spec.cache_subdir} cache соответствует {archive_tar.name}")
                 else:
-                    print(
-                        f"ERROR: archive изменился - выполните download-yarn-cache",
-                        flush=True,
-                    )
-                    errors += 1
+                    fail("archive изменился - выполните download-yarn-cache")
             else:
-                print(
-                    f"ERROR: нет {spec.cache_subdir}/.{spec.archive_subdir}.sha256 - выполните download-yarn-cache",
-                    flush=True,
+                fail(
+                    f"нет {spec.cache_subdir}/.{spec.archive_subdir}.sha256 - выполните download-yarn-cache"
                 )
-                errors += 1
             cache_entries = [
                 p
                 for p in cache_dir.iterdir()
@@ -189,11 +152,7 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
             if v6_dir.is_dir():
                 cache_entries.append(v6_dir)
             if not cache_entries:
-                print(
-                    f"ERROR: {spec.cache_subdir}/ пуст (нет пакетов) - выполните download-yarn-cache",
-                    flush=True,
-                )
-                errors += 1
+                fail(f"{spec.cache_subdir}/ пуст (нет пакетов) - выполните download-yarn-cache")
             else:
                 print(f"OK: {spec.cache_subdir} entries - {len(cache_entries)}")
     else:
