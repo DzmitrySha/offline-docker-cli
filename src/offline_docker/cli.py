@@ -22,14 +22,31 @@ from offline_docker.validate import validate_offline_cache
 
 _MAIN_EPILOG = """\
 примеры:
+  offline-docker configure
+  offline-docker init -p .
   offline-docker discover -p .
   offline-docker download-offline-cache -p /path/to/project
   offline-docker build-offline -p .
   offline-docker up-offline -p . --lab
   offline-docker scan-trivy-offline -p . backend
 
+после pip install: offline-docker configure  (Enter = только offline-cache)
+init: рекурсивный черновик .offline-docker.json (или .generated.json если канон есть)
 конфиг целевого проекта: .offline-docker.json (шаблон: examples/offline-docker.json.example)
 подробнее: offline-docker <команда> --help
+"""
+
+_INIT_EPILOG = """\
+примеры:
+  offline-docker init -p .
+  offline-docker init -p . --dry-run
+
+выходной файл:
+  нет канона -> .offline-docker.json
+  есть .offline-docker.json/.yaml -> .offline-docker.generated.json (канон не трогаем)
+
+черновик содержит секцию _init.gaps (список того, что доработать вручную).
+offline-Dockerfile / compose.offline НЕ генерируются — только пути и gaps.
 """
 
 _UP_OFFLINE_EPILOG = """\
@@ -121,6 +138,9 @@ def _download_offline_cache(ctx: ProjectContext) -> None:
     print(f" Project: {ctx.root}")
     print("========================================")
     print()
+    from offline_docker.sync_cache import maybe_materialize
+
+    maybe_materialize(ctx)
     download_debs(ctx)
     print()
     download_wheels(ctx)
@@ -146,6 +166,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
+    from offline_docker.configure import add_configure_parser, run_configure
+
+    add_configure_parser(sub)
+
     def add_cmd(
         name: str,
         help_text: str,
@@ -162,6 +186,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         _add_project_args(p)
         return p
+
+    p_init = add_cmd(
+        "init",
+        "Рекурсивный scan → черновик .offline-docker.json",
+        description=(
+            "Рекурсивно ищет compose/Dockerfile/python/frontend, "
+            "пишет черновик конфига и список Missing/gaps."
+        ),
+        epilog=_INIT_EPILOG,
+    )
+    p_init.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Только отчёт, без записи файла",
+    )
 
     add_cmd("discover", "Показать обнаруженные зависимости проекта")
 
@@ -245,6 +284,17 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     args = parser.parse_args(argv)
+
+    if args.command == "configure":
+        run_configure(args)
+        return 0
+
+    if args.command == "init":
+        from offline_docker.init_cmd import run_init
+
+        run_init(_resolve_project_path(args.project), dry_run=args.dry_run)
+        return 0
+
     docker_cmd.require_docker()
     ctx = _load_ctx(args)
 
