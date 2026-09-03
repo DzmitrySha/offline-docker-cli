@@ -35,7 +35,7 @@ def read_torch_version(path: Path) -> str:
 
 
 _APT_INSTALL_RE = re.compile(
-    r"apt-get\s+install\b[^\\]*?(?:\\\s*\n[^\\]*?)*",
+    r"apt-get\s+install\b(?:[^\n\\]|\\\s*\n)+",
     re.MULTILINE,
 )
 
