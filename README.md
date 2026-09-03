@@ -18,25 +18,45 @@ D:\opo\NeuroAI\offline-docker-cli\offline-docker.cmd discover -p D:\opo\NeuroAI\
 cd D:\opo\NeuroAI\offline-docker-cli
 pip install -e .
 pip install -e ".[yaml]"   # опционально: .offline-docker.yaml
+offline-docker configure   # ProGet/Nexus URL (Enter = только offline-cache)
 ```
 
 ## Быстрый старт
 
-В корне **целевого проекта** должен быть `.offline-docker.json` (шаблоны — в `examples/`):
+Сгенерировать черновик конфига (рекурсивный scan) или скопировать шаблон из `examples/`:
 
 ```powershell
 cd D:\opo\NeuroAI\prognoz-np
+offline-docker init -p .          # → .offline-docker.json (или .generated.json)
 offline-docker discover -p .
 offline-docker download-offline-cache -p .
 offline-docker build-offline -p .
 offline-docker up-offline -p .
 ```
 
+### `init` — черновик конфига
+
+Рекурсивно ищет compose, Dockerfile, python/frontend lock-файлы и пишет JSON по схеме example.
+
+| Ситуация | Файл |
+|----------|------|
+| Нет `.offline-docker.json` / `.yaml` | создаётся `.offline-docker.json` |
+| Канон уже есть | пишется `.offline-docker.generated.json` (канон **не** затирается) |
+
+В JSON есть секция `_init.gaps` и в stdout — блок `Missing / to fix:` (нет `Dockerfile.*.offline`, offline-compose и т.д.).  
+**Не** генерируются сами offline-Dockerfile / compose — только пути и список доработок.
+
+```powershell
+offline-docker init -p . --dry-run   # только отчёт
+```
+
 ## Команды
 
 | Команда | Описание |
 |---------|----------|
-| `discover` | Compose, Python/npm lock, Dockerfile, APT-пакеты |
+| `configure` | User-level ProGet/Nexus (или local-only) |
+| `init` | Рекурсивный scan → черновик `.offline-docker.json` (+ gaps) |
+| `discover` | Compose, Python/npm lock, Dockerfile, APT-пакеты, sources, Missing |
 | `download-debs` | Ubuntu `.deb` (+ extra repos) |
 | `download-wheels` | Python wheels |
 | `download-npm-cache` | npm `_cacache` |
@@ -158,13 +178,48 @@ offline-docker scan-trivy-offline -p . backend myapp-backend:cuda12
 
 Пример: `examples/offline-docker.json.example` — скопируйте в корень проекта как `.offline-docker.json`.
 
+## Источники пакетов (local / ProGet / Nexus)
+
+По умолчанию CLI использует **только локальный** `offline-cache/`.
+
+После установки настройте корпоративные реестры (один раз на машину):
+
+```powershell
+offline-docker configure
+# или без prompt:
+offline-docker configure --local-only
+offline-docker configure --proget-url https://proget.example.com --nexus-url http://nexus.example.com:8081
+```
+
+Конфиг пишется в user-level файл (не в example проекта):
+
+- Linux/macOS: `~/.config/offline-docker/sources.json`
+- Windows: `%APPDATA%\offline-docker\sources.json`
+- override каталога: `OFFLINE_DOCKER_CONFIG_DIR`
+
+Приоритет: **project `.offline-docker.json` → секция `cache`** перекрывает user-config; иначе user; иначе local-only.
+
+Порядок поиска задаётся `resolve.order` (например `local,proget,nexus`). `download-wheels` / `download-npm-cache` ходят по цепочке index URL и дописывают артефакты в локальную папку (`fill_local`).
+
+Auth (опционально, через env, не в JSON): `PROGET_API_KEY`, `NEXUS_AUTH` (`user:pass` или Bearer).
+
+Для Nexus по HTTP pip автоматически получает `--trusted-host`; npm — `strict-ssl false`.
+
+Env: `OFFLINE_RESOLVE_ORDER=local,proget,nexus` — временный override порядка.
+
+Шаблон проекта (`examples/offline-docker.json.example`) **нейтральный** — без корпоративных URL.
+
 ## Env-переменные
 
 | Переменная | Назначение |
 |------------|------------|
 | `OFFLINE_CACHE` | Путь к offline-cache (override) |
 | `{APP_NAME}_OFFLINE_CACHE` | Alias из `app_name` в конфиге |
+| `OFFLINE_DOCKER_CONFIG_DIR` | Каталог user-config (`sources.json`) |
+| `OFFLINE_RESOLVE_ORDER` | Порядок sources через запятую |
+| `PROGET_API_KEY` / `NEXUS_AUTH` | Auth для remote |
 | `PYTORCH_INDEX` | Index URL для torch wheels |
+| `PYPI_INDEX` | Force primary PyPI index |
 | `DOCKER_BUILDKIT` | `1` для build |
 
 ## Структура репозитория
@@ -187,6 +242,14 @@ offline-docker-cli/
 - Docker (CLI на PATH)
 
 ## Changelog
+
+### 1.3.0
+
+- Мульти-источники пакетов: local → ProGet → Nexus (порядок в `resolve.order`).
+- Команда `offline-docker configure` (user-level `sources.json`; пустые URL = local-only).
+- `download-wheels` / `download-npm-cache` / `download-debs` используют цепочку index URL.
+- Best-effort materialize/publish для Nexus raw и ProGet universal (`publish: true`).
+- `discover` печатает активные sources.
 
 ### 1.2.0
 

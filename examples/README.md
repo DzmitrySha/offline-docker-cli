@@ -5,8 +5,14 @@
 ## Установка в проект
 
 ```bash
+# Вариант A: авто-черновик (рекурсивный scan + gaps)
+offline-docker init -p /path/to/your-project
+
+# Вариант B: ручной шаблон
 cp examples/offline-docker.json.example /path/to/your-project/.offline-docker.json
 ```
+
+Если `.offline-docker.json` уже есть, `init` пишет `.offline-docker.generated.json` и не затирает канон.
 
 Затем отредактируйте под свой репозиторий:
 
@@ -64,3 +70,42 @@ offline-docker scan-trivy-offline -p . frontend myapp-frontend:custom-tag
 ```
 
 Образ для scan берётся из `images.backend` / `images.frontend`, если не передан третий аргумент.
+
+### Package sources (`cache`) — опционально
+
+Секция **не обязательна** в project-конфиге. По умолчанию источники настраиваются один раз на машину:
+
+```bash
+offline-docker configure
+```
+
+Если нужна project-specific цепочка (перекрывает user-config), добавьте нейтральный блок с **пустыми** URL или своими значениями:
+
+```json
+"cache": {
+  "sources": [
+    { "name": "local", "type": "filesystem", "enabled": true },
+    {
+      "name": "proget",
+      "type": "proget",
+      "url": "",
+      "feeds": { "pypi": "", "npm": "", "deb": "" },
+      "enabled": false
+    },
+    {
+      "name": "nexus",
+      "type": "nexus",
+      "url": "",
+      "repos": { "pypi": "", "npm": "" },
+      "enabled": false
+    }
+  ],
+  "resolve": {
+    "order": ["local"],
+    "fill_local": true,
+    "on_miss": "fail"
+  }
+}
+```
+
+Пустые URL / `enabled: false` = только offline-cache. Корпоративные адреса в этот example **не** вносятся — см. `offline-docker configure --help`.
