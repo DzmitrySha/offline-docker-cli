@@ -180,6 +180,22 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
                     flush=True,
                 )
                 errors += 1
+            cache_entries = [
+                p
+                for p in cache_dir.iterdir()
+                if p.name not in {".mount-check"} and not p.name.startswith(".")
+            ]
+            v6_dir = cache_dir / "v6"
+            if v6_dir.is_dir():
+                cache_entries.append(v6_dir)
+            if not cache_entries:
+                print(
+                    f"ERROR: {spec.cache_subdir}/ пуст (нет пакетов) - выполните download-yarn-cache",
+                    flush=True,
+                )
+                errors += 1
+            else:
+                print(f"OK: {spec.cache_subdir} entries - {len(cache_entries)}")
     else:
         print("SKIP: yarn cache (нет source=yarn в *Dockerfile.offline)")
 
