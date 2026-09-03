@@ -23,7 +23,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates git
 rm -rf /var/lib/apt/lists/*
-yarn config set cacheFolder /yarn-cache
+yarn config set cache-folder /yarn-cache
 yarn install --network-timeout 100000
 echo "mount-check-$(date +%s)" > /yarn-cache/.mount-check
 """
