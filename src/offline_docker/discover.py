@@ -2,146 +2,42 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
-from offline_docker.config import DockerfilesConfig, ImagesConfig, ProjectConfig
-from offline_docker.defaults import (
-    DEFAULT_CRITICAL_WHEELS,
-    DEFAULT_DEB_PACKAGES,
-    DEFAULT_DOCKER_IMAGES,
+from offline_docker.config import ProjectConfig
+from offline_docker.scan import (
+    ScanInventory,
+    compute_init_gaps,
+    inventory_to_draft_config,
+    recursive_scan,
 )
-from offline_docker.utils import parse_apt_packages_from_dockerfiles
-
-
-def _find_compose_files(root: Path) -> list[str]:
-    files = sorted(root.glob("docker-compose*.yml"))
-    return [f.name for f in files]
-
-
-def _find_frontend_dir(root: Path) -> str | None:
-    for name in ("frontend", "web", "ui", "fe_mt_react", "client"):
-        d = root / name
-        if d.is_dir() and (d / "package-lock.json").is_file():
-            return name
-        if d.is_dir() and (d / "package.json").is_file():
-            return name
-    return None
-
-
-def _guess_app_name(root: Path, compose_files: list[str]) -> str:
-    for compose in compose_files:
-        path = root / compose
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        m = re.search(r"^name:\s*(\S+)", text, re.MULTILINE)
-        if m:
-            return m.group(1).strip('"').strip("'")
-    return root.name.replace("-", "").replace("_", "")[:20] or "app"
-
-
-def _guess_image_names(root: Path, app_name: str, compose_online: str) -> ImagesConfig:
-    images = ImagesConfig()
-    online_compose = root / compose_online
-    if online_compose.is_file():
-        text = online_compose.read_text(encoding="utf-8", errors="replace")
-        for svc in ("backend", "frontend"):
-            pattern = rf"(?:\w+_)?{svc.upper()}_IMAGE:-([^}}]+)\}}"
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                tag = match.group(1).strip()
-                setattr(images, svc, tag)
-
-        base_match = re.search(r"BASE_IMAGE:\s*\$\{{[^:}]+:-([^}]+)\}", text)
-        if base_match:
-            images.base = base_match.group(1).strip()
-
-    if images.backend == "app-backend:latest":
-        images.backend = f"{root.name}-backend:latest"
-    if images.frontend == "app-frontend:latest":
-        images.frontend = f"{root.name}-frontend:latest"
-
-    return images
-
-
-def _detect_python_lock_files(root: Path) -> list[str]:
-    candidates = ["pyproject.toml", "uv.lock", "requirements-base.txt", "requirements.txt"]
-    return [f for f in candidates if (root / f).is_file()]
-
-
-def _detect_torch_file(root: Path) -> str:
-    for name in ("requirements-base.txt", "requirements.txt"):
-        if (root / name).is_file():
-            text = (root / name).read_text(encoding="utf-8", errors="replace")
-            if "torch==" in text:
-                return name
-    return "requirements-base.txt"
-
-
-def _detect_dockerfiles(root: Path) -> DockerfilesConfig:
-    df = DockerfilesConfig()
-    fe_dir = _find_frontend_dir(root) or "frontend"
-    if (root / fe_dir / "Dockerfile.offline").is_file():
-        df.frontend_offline = f"{fe_dir}/Dockerfile.offline"
-    if (root / fe_dir / "Dockerfile").is_file():
-        df.frontend = f"{fe_dir}/Dockerfile"
-    for attr in ("base", "base_offline", "backend", "backend_offline"):
-        rel = getattr(df, attr)
-        if not (root / rel).is_file():
-            # keep default; discover will note missing in report
-            pass
-    return df
 
 
 def discover_project(root: Path) -> ProjectConfig:
+    """Recursive scan + role heuristics (shared with init)."""
     root = root.resolve()
-    compose_files = _find_compose_files(root)
-    frontend_dir = _find_frontend_dir(root) or "frontend"
-    app_name = _guess_app_name(root, compose_files)
-    dockerfiles = _detect_dockerfiles(root)
-
-    deb_from_docker = parse_apt_packages_from_dockerfiles(
-        root / dockerfiles.base,
-        root / dockerfiles.backend,
-    )
-    deb_packages = deb_from_docker if deb_from_docker else list(DEFAULT_DEB_PACKAGES)
-
-    compose_offline = "docker-compose.offline.yml"
-    compose_online = "docker-compose.yml"
-    if compose_offline not in compose_files and compose_files:
-        offline_candidates = [f for f in compose_files if "offline" in f]
-        if offline_candidates:
-            compose_offline = offline_candidates[0]
-    if compose_online not in compose_files and compose_files:
-        online_candidates = [f for f in compose_files if "offline" not in f and "lab" not in f]
-        compose_online = online_candidates[0] if online_candidates else compose_files[0]
-
-    log_dir = root / "storage" / "logs"
-    if not log_dir.parent.is_dir():
-        log_dir = root / "logs"
-
-    cfg = ProjectConfig(
-        root=root,
-        offline_cache=root / "offline-cache",
-        log_dir=log_dir,
-        compose_files=compose_files,
-        compose_offline=compose_offline,
-        compose_online=compose_online,
-        frontend_dir=frontend_dir,
-        python_lock_files=_detect_python_lock_files(root),
-        torch_version_file=_detect_torch_file(root),
-        deb_packages=deb_packages,
-        docker_images=list(DEFAULT_DOCKER_IMAGES),
-        dockerfiles=dockerfiles,
-        images=_guess_image_names(root, app_name, compose_online),
-        critical_wheels=list(DEFAULT_CRITICAL_WHEELS),
-        app_name=app_name,
-    )
-    return cfg
+    inventory = recursive_scan(root)
+    return inventory_to_draft_config(root, inventory)
 
 
-def format_discovery_report(cfg: ProjectConfig) -> str:
+def discover_with_inventory(root: Path) -> tuple[ProjectConfig, ScanInventory]:
+    root = root.resolve()
+    inventory = recursive_scan(root)
+    cfg = inventory_to_draft_config(root, inventory)
+    return cfg, inventory
+
+
+def format_discovery_report(
+    cfg: ProjectConfig,
+    *,
+    inventory: ScanInventory | None = None,
+    gaps: list[str] | None = None,
+) -> str:
+    if inventory is None:
+        inventory = recursive_scan(cfg.root)
+    if gaps is None:
+        gaps = compute_init_gaps(cfg, inventory)
+
     lines = [
         f"=== discover: {cfg.root} ===",
         "",
@@ -163,7 +59,8 @@ def format_discovery_report(cfg: ProjectConfig) -> str:
         ]
     )
     for f in cfg.python_lock_files:
-        lines.append(f"  - {f}")
+        exists = "ok" if cfg.path(f).is_file() else "missing"
+        lines.append(f"  - {f} ({exists})")
     tv = cfg.torch_version()
     lines.extend(
         [
@@ -176,12 +73,13 @@ def format_discovery_report(cfg: ProjectConfig) -> str:
     )
     from offline_docker.oc_discovery import discover_yarn_cache_specs
 
-    for spec in discover_yarn_cache_specs(cfg):
+    yarn_specs = discover_yarn_cache_specs(cfg)
+    for spec in yarn_specs:
         lines.append(
             f"  - cache={spec.cache_subdir}, archive={spec.archive_subdir}, "
             f"arg={spec.version_arg}, dockerfile={spec.source_dockerfile}"
         )
-    if not discover_yarn_cache_specs(cfg):
+    if not yarn_specs:
         lines.append("  (не требуется)")
     lines.extend(
         [
@@ -190,10 +88,12 @@ def format_discovery_report(cfg: ProjectConfig) -> str:
             f"  lock: {cfg.frontend_lock}",
             "",
             "Dockerfiles:",
-            f"  base:          {cfg.dockerfiles.base}",
-            f"  base_offline:  {cfg.dockerfiles.base_offline}",
-            f"  backend:       {cfg.dockerfiles.backend_offline}",
-            f"  frontend:      {cfg.dockerfiles.frontend_offline}",
+            f"  base:             {cfg.dockerfiles.base}",
+            f"  base_offline:     {cfg.dockerfiles.base_offline}",
+            f"  backend:          {cfg.dockerfiles.backend}",
+            f"  backend_offline:  {cfg.dockerfiles.backend_offline}",
+            f"  frontend:         {cfg.dockerfiles.frontend}",
+            f"  frontend_offline: {cfg.dockerfiles.frontend_offline}",
             "",
             f"APT packages ({len(cfg.deb_packages)}):",
         ]
@@ -218,4 +118,22 @@ def format_discovery_report(cfg: ProjectConfig) -> str:
         lines.extend(["", "Extra APT repos:"])
         for repo in cfg.deb_extra_repos:
             lines.append(f"  - {repo.name}")
+
+    if inventory.dockerfiles or inventory.python_files or inventory.package_json_dirs:
+        lines.extend(["", "Scan inventory (recursive):"])
+        lines.append(f"  compose:    {len(inventory.compose_files)}")
+        lines.append(f"  dockerfiles:{len(inventory.dockerfiles)}")
+        lines.append(f"  python:     {len(inventory.python_files)}")
+        lines.append(f"  frontend locks: {len(inventory.frontend_lock_paths)}")
+
+    lines.extend(["", "Missing / to fix:"])
+    if gaps:
+        for g in gaps:
+            lines.append(f"  - {g}")
+    else:
+        lines.append("  (нет — offline-артефакты на месте)")
+
+    lines.extend(["", "Package sources:"])
+    lines.extend(cfg.package_resolver().summary_lines())
+
     return "\n".join(lines)
