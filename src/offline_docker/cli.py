@@ -7,18 +7,8 @@ import sys
 from pathlib import Path
 
 from offline_docker import docker_cmd
-from offline_docker.build import build_base_offline_cmd, build_offline, dev_up, up_offline
+from offline_docker.actions import PROJECT_ACTIONS, run_action
 from offline_docker.context import ProjectContext
-from offline_docker.discover import format_discovery_report
-from offline_docker.download_debs import download_debs
-from offline_docker.download_images import download_docker_images
-from offline_docker.download_npm import download_npm_cache
-from offline_docker.download_trivy import download_trivy_db
-from offline_docker.download_wheels import download_wheels
-from offline_docker.download_yarn import download_yarn_cache
-from offline_docker.load_images import load_docker_images
-from offline_docker.trivy_scan import scan_trivy_offline
-from offline_docker.validate import validate_offline_cache
 
 _MAIN_EPILOG = """\
 примеры:
@@ -29,10 +19,12 @@ _MAIN_EPILOG = """\
   offline-docker build-offline -p .
   offline-docker up-offline -p . --lab
   offline-docker scan-trivy-offline -p . backend
+  offline-docker tui -p .
 
 после pip install: offline-docker configure  (Enter = только offline-cache)
 init: рекурсивный черновик .offline-docker.json (или .generated.json если канон есть)
 конфиг целевого проекта: .offline-docker.json (шаблон: examples/offline-docker.json.example)
+TUI (опционально): pip install -e ".[tui]" && offline-docker tui
 подробнее: offline-docker <команда> --help
 """
 
@@ -93,6 +85,15 @@ _BUILD_OFFLINE_EPILOG = """\
   offline-docker build-offline -p . --no-cache
 """
 
+_TUI_EPILOG = """\
+примеры:
+  offline-docker tui
+  offline-docker tui -p .
+
+нужна optional-зависимость:
+  pip install -e ".[tui]"
+"""
+
 
 def _add_no_cache_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
@@ -132,29 +133,25 @@ def _load_ctx(args: argparse.Namespace) -> ProjectContext:
     )
 
 
-def _download_offline_cache(ctx: ProjectContext) -> None:
-    print("========================================")
-    print(" download-offline-cache (полный набор)")
-    print(f" Project: {ctx.root}")
-    print("========================================")
-    print()
-    from offline_docker.sync_cache import maybe_materialize
-
-    maybe_materialize(ctx)
-    download_debs(ctx)
-    print()
-    download_wheels(ctx)
-    print()
-    download_npm_cache(ctx)
-    print()
-    download_yarn_cache(ctx)
-    print()
-    download_docker_images(ctx)
-    print()
-    download_trivy_db(ctx)
-    print()
-    print("=== offline-cache готов ===")
-    print(docker_cmd.dir_size_human(ctx.offline_cache))
+def _action_opts(args: argparse.Namespace) -> dict:
+    opts: dict = {}
+    if hasattr(args, "no_cache"):
+        opts["no_cache"] = args.no_cache
+    if hasattr(args, "targets"):
+        opts["targets"] = list(args.targets) if args.targets else None
+    if hasattr(args, "lab"):
+        opts["lab"] = args.lab
+    if hasattr(args, "no_build"):
+        opts["no_build"] = args.no_build
+    if hasattr(args, "no_deps"):
+        opts["no_deps"] = args.no_deps
+    if hasattr(args, "services"):
+        opts["services"] = list(args.services) if args.services else None
+    if hasattr(args, "target"):
+        opts["target"] = args.target
+    if hasattr(args, "image"):
+        opts["image"] = args.image
+    return opts
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -283,6 +280,13 @@ def main(argv: list[str] | None = None) -> int:
         help="опционально: тег образа (default: images.<target> из конфига)",
     )
 
+    add_cmd(
+        "tui",
+        "Интерактивный Textual TUI (optional: pip install -e \".[tui]\")",
+        description="Terminal UI поверх тех же команд offline-docker.",
+        epilog=_TUI_EPILOG,
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "configure":
@@ -295,43 +299,38 @@ def main(argv: list[str] | None = None) -> int:
         run_init(_resolve_project_path(args.project), dry_run=args.dry_run)
         return 0
 
-    docker_cmd.require_docker()
+    if args.command == "tui":
+        try:
+            import textual  # noqa: F401
+            from offline_docker.tui import run_tui
+        except ImportError:
+            print(
+                'TUI требует Textual. Установите: pip install -e ".[tui]"',
+                file=sys.stderr,
+            )
+            return 1
+        return run_tui(
+            project=_resolve_project_path(args.project),
+            config_file=args.config,
+        )
+
+    if args.command in PROJECT_ACTIONS:
+        docker_cmd.require_docker()
+
     ctx = _load_ctx(args)
 
-    handlers: dict[str, object] = {
-        "discover": lambda: print(format_discovery_report(ctx.config)),
-        "download-wheels": lambda: download_wheels(ctx),
-        "download-debs": lambda: download_debs(ctx),
-        "download-npm-cache": lambda: download_npm_cache(ctx),
-        "download-yarn-cache": lambda: download_yarn_cache(ctx),
-        "download-docker-images": lambda: download_docker_images(ctx),
-        "download-trivy-db": lambda: download_trivy_db(ctx),
-        "download-offline-cache": lambda: _download_offline_cache(ctx),
-        "validate-offline-cache": lambda: validate_offline_cache(ctx),
-        "load-docker-images": lambda: load_docker_images(ctx),
-        "build-base-offline": lambda: build_base_offline_cmd(ctx, no_cache=args.no_cache),
-        "build-offline": lambda: build_offline(
-            ctx,
-            list(args.targets) if args.targets else None,
-            no_cache=args.no_cache,
-        ),
-        "dev-up": lambda: dev_up(ctx, no_cache=args.no_cache),
-        "up-offline": lambda: up_offline(
-            ctx,
-            lab=args.lab,
-            no_build=args.no_build,
-            no_deps=args.no_deps,
-            no_cache=args.no_cache,
-            services=list(args.services) if args.services else None,
-        ),
-        "scan-trivy-offline": lambda: scan_trivy_offline(ctx, args.target, args.image),
-    }
-
     try:
-        handlers[args.command]()
+        run_action(args.command, ctx, **_action_opts(args))
     except docker_cmd.CommandError as exc:
         print(str(exc), file=sys.stderr)
         return exc.returncode
+    except SystemExit as exc:
+        code = exc.code
+        if code is None:
+            return 0
+        if isinstance(code, int):
+            return code
+        return 1
 
     return 0
 
