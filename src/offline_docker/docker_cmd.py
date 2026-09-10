@@ -111,16 +111,21 @@ def run_tee(
 
 
 def dir_size_human(path: Path) -> str:
+    """Human-readable size. Skips broken symlinks (common on Windows yarn caches)."""
     total = 0
-    if path.is_file():
-        total = path.stat().st_size
-    elif path.is_dir():
-        for f in path.rglob("*"):
-            if f.is_file():
+    try:
+        if path.is_file():
+            total = path.stat().st_size
+        elif path.is_dir():
+            for f in path.rglob("*"):
                 try:
-                    total += f.stat().st_size
+                    # is_file() follows symlinks and can raise WinError 1920
+                    if f.is_file():
+                        total += f.stat().st_size
                 except OSError:
                     pass
+    except OSError:
+        pass
     size = float(total)
     for unit in ("B", "K", "M", "G"):
         if size < 1024.0 or unit == "G":
