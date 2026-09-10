@@ -34,6 +34,43 @@ def _archive_tag_file(archive_dir: Path, tag: str) -> Path:
     return archive_dir / f".archive-{safe}.tag"
 
 
+def sanitize_yarn_cache_for_buildkit(cache_dir: Path) -> int:
+    """Remove package ``.bin`` dirs from yarn cache.
+
+    Yarn classic stores Linux symlinks under ``*/.bin/*`` when the cache is
+    filled via a Linux container bind-mounted to a Windows host. Docker
+    BuildKit then fails with ``invalid file request .../.bin/parser`` while
+    transferring the ``oc`` additional context. Offline install uses
+    ``.yarn-tarball.tgz`` and does not need those ``.bin`` links.
+    """
+    if not cache_dir.is_dir():
+        return 0
+    removed = 0
+    for bin_dir in sorted(cache_dir.rglob(".bin"), reverse=True):
+        if not bin_dir.is_dir():
+            continue
+        try:
+            shutil.rmtree(bin_dir)
+            removed += 1
+            continue
+        except OSError:
+            pass
+        for child in list(bin_dir.iterdir()):
+            try:
+                child.unlink(missing_ok=True)
+            except OSError:
+                try:
+                    child.unlink()
+                except OSError:
+                    pass
+        try:
+            bin_dir.rmdir()
+            removed += 1
+        except OSError:
+            pass
+    return removed
+
+
 def download_oc_archive(ctx: ProjectContext, spec: YarnCacheSpec) -> Path:
     if shutil.which("git") is None:
         raise SystemExit("ERROR: git не найден в PATH — нужен для подготовки oc-архива")
@@ -115,7 +152,10 @@ def _download_yarn_cache_one(ctx: ProjectContext, spec: YarnCacheSpec) -> None:
         and hash_file.read_text(encoding="utf-8").strip() == current
         and marker.is_file()
     ):
+        n = sanitize_yarn_cache_for_buildkit(cache_dir)
         print(f"=== download-yarn-cache [{spec.cache_subdir}]: cache актуален ===")
+        if n:
+            print(f"sanitize: removed {n} .bin dir(s) for BuildKit/Windows")
         print(docker_cmd.dir_size_human(cache_dir))
         return
 
@@ -144,6 +184,8 @@ def _download_yarn_cache_one(ctx: ProjectContext, spec: YarnCacheSpec) -> None:
                 "docker",
                 "run",
                 "--rm",
+                "--entrypoint",
+                "/bin/bash",
                 "-v",
                 f"{yarn_docker}:/yarn-cache",
                 "-v",
@@ -151,7 +193,6 @@ def _download_yarn_cache_one(ctx: ProjectContext, spec: YarnCacheSpec) -> None:
                 "-w",
                 "/work/frontend",
                 spec.node_image,
-                "bash",
                 "-ec",
                 YARN_GUEST,
             ],
@@ -159,6 +200,9 @@ def _download_yarn_cache_one(ctx: ProjectContext, spec: YarnCacheSpec) -> None:
         )
 
     hash_file.write_text(current + "\n", encoding="utf-8")
+    n = sanitize_yarn_cache_for_buildkit(cache_dir)
     print()
     print(f"=== Готово: yarn cache в {cache_dir} ===")
+    if n:
+        print(f"sanitize: removed {n} .bin dir(s) for BuildKit/Windows")
     print(docker_cmd.dir_size_human(cache_dir))
