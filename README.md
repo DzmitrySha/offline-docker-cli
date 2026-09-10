@@ -27,9 +27,15 @@ offline-docker configure   # ProGet/Nexus URL (Enter = только offline-cach
 Терминальный UI поверх тех же команд (статус кэша, меню, live-лог). CLI остаётся основным интерфейсом.
 
 ```powershell
-pip install -e ".[tui]"
+# Установка (для использования — без -e, чтобы пакет жил в site-packages)
+pip install D:\opo\NeuroAI\offline-docker-cli\[tui]
+
+# Запуск
 offline-docker tui -p .
 ```
+
+**Важно:** `pip install -e ".[tui]"` (editable) привязывает пакет к папке исходников — если папку переместить/удалить, CLI сломается. Для использования рекомендуется **обычная установка** (без `-e`).  
+Для разработки самого CLI — тогда `-e`.
 
 ## Быстрый старт
 
