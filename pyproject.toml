@@ -1,6 +1,6 @@
 [project]
 name = "offline-docker-cli"
-version = "1.3.0"
+version = "1.4.0"
 description = "Universal Docker offline cache, build and Trivy scan CLI for NeuroAI projects"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,7 +19,8 @@ dependencies = []
 
 [project.optional-dependencies]
 yaml = ["pyyaml>=6.0"]
-dev = ["pyyaml>=6.0"]
+tui = ["textual>=0.80"]
+dev = ["pyyaml>=6.0", "textual>=0.80"]
 
 [project.scripts]
 offline-docker = "offline_docker.cli:main"
