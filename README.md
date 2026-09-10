@@ -18,7 +18,17 @@ D:\opo\NeuroAI\offline-docker-cli\offline-docker.cmd discover -p D:\opo\NeuroAI\
 cd D:\opo\NeuroAI\offline-docker-cli
 pip install -e .
 pip install -e ".[yaml]"   # опционально: .offline-docker.yaml
+pip install -e ".[tui]"    # опционально: Textual TUI
 offline-docker configure   # ProGet/Nexus URL (Enter = только offline-cache)
+```
+
+### Опциональный TUI
+
+Терминальный UI поверх тех же команд (статус кэша, меню, live-лог). CLI остаётся основным интерфейсом.
+
+```powershell
+pip install -e ".[tui]"
+offline-docker tui -p .
 ```
 
 ## Быстрый старт
@@ -55,6 +65,7 @@ offline-docker init -p . --dry-run   # только отчёт
 | Команда | Описание |
 |---------|----------|
 | `configure` | User-level ProGet/Nexus (или local-only) |
+| `tui` | Интерактивный Textual TUI (нужен `pip install -e ".[tui]"`) |
 | `init` | Рекурсивный scan → черновик `.offline-docker.json` (+ gaps) |
 | `discover` | Compose, Python/npm lock, Dockerfile, APT-пакеты, sources, Missing |
 | `download-debs` | Ubuntu `.deb` (+ extra repos) |
@@ -242,6 +253,11 @@ offline-docker-cli/
 - Docker (CLI на PATH)
 
 ## Changelog
+
+### 1.4.0
+
+- Опциональный Textual TUI: `offline-docker tui` (`pip install -e ".[tui]"`) — статус кэша, меню команд, live-лог.
+- Общий слой `actions` / structured `collect_cache_status` для CLI и TUI.
 
 ### 1.3.0
 
