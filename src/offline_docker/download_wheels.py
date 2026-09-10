@@ -59,7 +59,7 @@ for ((i=0; i<${#pip_index_args[@]}; i++)); do
   if [[ "$arg" == --index-url || "$arg" == --extra-index-url ]]; then
     url="${pip_index_args[$((i+1))]:-}"
     case "$url" in
-      http://*)
+      http://*|https://*)
         host="$(echo "$url" | sed -E 's#^https?://([^/:]+).*#\1#')"
         pip_index_args+=(--trusted-host "$host")
         ;;
