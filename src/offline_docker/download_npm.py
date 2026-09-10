@@ -6,10 +6,11 @@ from offline_docker import docker_cmd
 from offline_docker.context import ProjectContext
 from offline_docker.utils import docker_mount_path, file_sha256
 
+# POSIX /bin/sh (node:*-alpine has no bash; node ENTRYPOINT would otherwise exec "node bash")
 NPM_GUEST = r"""
 set -euo pipefail
 cp /app-src/package.json /app-src/package-lock.json . 2>/dev/null || cp /app-src/package.json .
-if [[ ! -f package-lock.json ]]; then
+if [ ! -f package-lock.json ]; then
   echo "ERROR: package-lock.json не найден - нужен lockfile для offline npm ci" >&2
   exit 1
 fi
@@ -67,6 +68,8 @@ def download_npm_cache(ctx: ProjectContext) -> None:
             "docker",
             "run",
             "--rm",
+            "--entrypoint",
+            "/bin/sh",
             "-e",
             f"NPM_REGISTRY={registry}",
             "-v",
@@ -76,7 +79,6 @@ def download_npm_cache(ctx: ProjectContext) -> None:
             "-w",
             "/work",
             ctx.config.node_image,
-            "bash",
             "-ec",
             NPM_GUEST,
         ],
