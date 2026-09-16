@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from offline_docker import docker_cmd
+from offline_docker import __version__, docker_cmd
 from offline_docker.actions import PROJECT_ACTIONS, run_action
 from offline_docker.context import ProjectContext
 
@@ -160,6 +160,12 @@ def main(argv: list[str] | None = None) -> int:
         description="CLI для offline-cache, офлайн-сборки Docker и Trivy-сканирования.",
         epilog=_MAIN_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
