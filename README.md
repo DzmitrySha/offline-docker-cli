@@ -260,6 +260,11 @@ offline-docker-cli/
 
 ## Changelog
 
+### 1.4.1
+
+- `download-npm-cache`: гостевой скрипт в `node:*-slim` идёт через `/bin/sh` (dash) — без `set -o pipefail` (иначе `Illegal option -o pipefail`).
+- `offline-docker --version` / `-V`; `__version__` синхронизирован с `pyproject.toml`.
+
 ### 1.4.0
 
 - Опциональный Textual TUI: `offline-docker tui` (`pip install -e ".[tui]"`) — статус кэша, меню команд, live-лог.
