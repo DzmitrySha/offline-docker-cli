@@ -7,31 +7,34 @@ import sys
 from pathlib import Path
 
 from offline_docker import __version__, docker_cmd
-from offline_docker.actions import PROJECT_ACTIONS, run_action
+from offline_docker.actions import DOCKER_ACTIONS, run_action
 from offline_docker.context import ProjectContext
 
 _MAIN_EPILOG = """\
 примеры:
-  offline-docker configure
-  offline-docker init -p .
-  offline-docker discover -p .
-  offline-docker download-offline-cache -p /path/to/project
-  offline-docker build-offline -p .
-  offline-docker up-offline -p . --lab
-  offline-docker scan-trivy-offline -p . backend
-  offline-docker tui -p .
+  offdock configure
+  offdock init -p .
+  offdock discover -p .
+  offdock cache -p /path/to/project
+  offdock build -p .
+  offdock up -p . --lab
+  offdock down -p .
+  offdock scan backend
+  offdock scan trivy frontend
+  offdock tui -p .
 
-после pip install: offline-docker configure  (Enter = только offline-cache)
+после pip install: offdock configure  (Enter = только offline-cache)
 init: рекурсивный черновик .offline-docker.json (или .generated.json если канон есть)
 конфиг целевого проекта: .offline-docker.json (шаблон: examples/offline-docker.json.example)
-TUI (опционально): pip install -e ".[tui]" && offline-docker tui
-подробнее: offline-docker <команда> --help
+TUI (опционально): pip install -e ".[tui]" && offdock tui
+alias: offline-docker (deprecated) → тот же CLI
+подробнее: offdock <команда> --help
 """
 
 _INIT_EPILOG = """\
 примеры:
-  offline-docker init -p .
-  offline-docker init -p . --dry-run
+  offdock init -p .
+  offdock init -p . --dry-run
 
 выходной файл:
   нет канона -> .offline-docker.json
@@ -41,58 +44,118 @@ _INIT_EPILOG = """\
 offline-Dockerfile / compose.offline НЕ генерируются — только пути и gaps.
 """
 
-_UP_OFFLINE_EPILOG = """\
+_CACHE_EPILOG = """\
 примеры:
-  offline-docker up-offline -p .
-  offline-docker up-offline -p . --lab
-  offline-docker up-offline -p . --no-build
-  offline-docker up-offline -p . --no-cache
-  offline-docker up-offline -p . --no-deps backend
-  offline-docker up-offline -p . --lab frontend
+  offdock cache                 # полный offline-cache
+  offdock cache wheels
+  offdock cache debs
+  offdock cache npm
+  offdock cache yarn
+  offdock cache images
+  offdock cache trivy
+  offdock cache check           # validate
+  offdock cache load            # *.tar → docker load
+"""
 
---lab (home lab):
+_UP_EPILOG = """\
+примеры:
+  offdock up -p .
+  offdock up -p . --lab
+  offdock up -p . --online
+  offdock up -p . --no-build
+  offdock up -p . --no-cache
+  offdock up -p . --no-deps backend
+  offdock up -p . --lab frontend
+
+режимы (взаимоисключающие --lab / --online):
+  без флагов  offline-стек (compose_up_offline)
+  --lab       offline + docker-compose.lab.yml
+  --online    только compose_online (бывший dev-up)
+
+--lab:
   Подключает docker-compose.lab.yml к merge-стеку.
   В проекте нужны: файл docker-compose.lab.yml и секция compose_up_offline_lab
   в .offline-docker.json (см. examples/offline-docker.json.example).
-  Если compose_up_offline_lab не задан, CLI добавит docker-compose.lab.yml
-  к списку из compose_up_offline.
 """
 
-_SCAN_TRIVY_EPILOG = """\
+_DOWN_EPILOG = """\
 примеры:
-  offline-docker scan-trivy-offline -p . backend
-  offline-docker scan-trivy-offline -p . frontend
-  offline-docker scan-trivy-offline -p . backend myapp-backend:latest
+  offdock down -p .
+  offdock down -p . --lab
+  offdock down -p . --online
+  offdock down -p . backend frontend
+  offdock down -p . --lab backend
+
+тот же выбор compose-файлов, что у up / up --lab / up --online.
+без --volumes (данные томов не удаляются).
+"""
+
+_SCAN_EPILOG = """\
+примеры:
+  offdock scan backend
+  offdock scan frontend
+  offdock scan trivy backend
+  offdock scan trivy frontend myapp-frontend:latest
 
 аргументы:
+  [trivy]  опционально: сканер (default: trivy)
   target   обязательный: backend или frontend
   image    опционально: тег образа (default: images.backend / images.frontend из конфига)
 
 перед сканом:
-  - образ собран локально (build-offline)
-  - БД Trivy в offline-cache/trivy/ (download-trivy-db)
-  - образ aquasec/trivy:latest (load-docker-images)
+  - образ собран локально (build)
+  - БД Trivy в offline-cache/trivy/ (cache trivy)
+  - образ aquasec/trivy:latest (cache load)
 
 параметры scan (severity, scanners) — секция trivy в .offline-docker.json
 лог: {log_dir}/trivy-scan-<target>.log
 """
 
-_BUILD_OFFLINE_EPILOG = """\
+_BUILD_EPILOG = """\
 примеры:
-  offline-docker build-offline -p .
-  offline-docker build-offline -p . backend
-  offline-docker build-offline -p . base backend frontend
-  offline-docker build-offline -p . --no-cache
+  offdock build -p .
+  offdock build -p . backend
+  offdock build -p . base backend frontend
+  offdock build -p . --no-cache
 """
 
 _TUI_EPILOG = """\
 примеры:
-  offline-docker tui
-  offline-docker tui -p .
+  offdock tui
+  offdock tui -p .
 
 нужна optional-зависимость:
   pip install -e ".[tui]"
 """
+
+_CACHE_SUB_TO_ACTION = {
+    "wheels": "cache-wheels",
+    "debs": "cache-debs",
+    "npm": "cache-npm",
+    "yarn": "cache-yarn",
+    "images": "cache-images",
+    "trivy": "cache-trivy",
+    "check": "cache-check",
+    "load": "cache-load",
+}
+
+# Flat deprecated command → canonical action name for run_action.
+_DEPRECATED_ALIASES: dict[str, str] = {
+    "download-offline-cache": "cache",
+    "download-wheels": "cache-wheels",
+    "download-debs": "cache-debs",
+    "download-npm-cache": "cache-npm",
+    "download-yarn-cache": "cache-yarn",
+    "download-docker-images": "cache-images",
+    "download-trivy-db": "cache-trivy",
+    "validate-offline-cache": "cache-check",
+    "load-docker-images": "cache-load",
+    "build-offline": "build",
+    "build-base-offline": "build-base",
+    "up-offline": "up",
+    "dev-up": "up-online",
+    "scan-trivy-offline": "scan",
+}
 
 
 def _add_no_cache_arg(parser: argparse.ArgumentParser) -> None:
@@ -119,6 +182,20 @@ def _add_project_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_lab_online_group(parser: argparse.ArgumentParser) -> None:
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--lab",
+        action="store_true",
+        help="home lab: добавить docker-compose.lab.yml",
+    )
+    mode.add_argument(
+        "--online",
+        action="store_true",
+        help="online compose (compose_online; бывший dev-up)",
+    )
+
+
 def _resolve_project_path(explicit: Path | None) -> Path:
     if explicit is not None:
         return explicit.resolve()
@@ -141,6 +218,8 @@ def _action_opts(args: argparse.Namespace) -> dict:
         opts["targets"] = list(args.targets) if args.targets else None
     if hasattr(args, "lab"):
         opts["lab"] = args.lab
+    if hasattr(args, "online"):
+        opts["online"] = args.online
     if hasattr(args, "no_build"):
         opts["no_build"] = args.no_build
     if hasattr(args, "no_deps"):
@@ -154,9 +233,9 @@ def _action_opts(args: argparse.Namespace) -> dict:
     return opts
 
 
-def main(argv: list[str] | None = None) -> int:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="offline-docker",
+        prog="offdock",
         description="CLI для offline-cache, офлайн-сборки Docker и Trivy-сканирования.",
         epilog=_MAIN_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -169,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    from offline_docker.configure import add_configure_parser, run_configure
+    from offline_docker.configure import add_configure_parser
 
     add_configure_parser(sub)
 
@@ -207,29 +286,30 @@ def main(argv: list[str] | None = None) -> int:
 
     add_cmd("discover", "Показать обнаруженные зависимости проекта")
 
-    for name, help_text in (
-        ("download-wheels", "Download Python wheels"),
-        ("download-debs", "Download .deb packages"),
-        ("download-npm-cache", "Download npm cache"),
-        ("download-yarn-cache", "Download yarn cache (if *Dockerfile.offline uses source=yarn)"),
-        ("download-docker-images", "docker pull + save base images"),
-        ("download-trivy-db", "Download Trivy vulnerability DB"),
-        ("download-offline-cache", "Run all download-* commands"),
-        ("validate-offline-cache", "Validate offline-cache completeness"),
-        ("load-docker-images", "docker load from offline-cache/docker"),
+    p_cache = add_cmd(
+        "cache",
+        "Скачать / проверить / загрузить offline-cache",
+        description="Без подкоманды — полный download. Подкоманды: wheels, debs, …",
+        epilog=_CACHE_EPILOG,
+    )
+    cache_sub = p_cache.add_subparsers(dest="cache_cmd", required=False)
+    for cname, chelp in (
+        ("wheels", "Download Python wheels"),
+        ("debs", "Download .deb packages"),
+        ("npm", "Download npm cache"),
+        ("yarn", "Download yarn cache"),
+        ("images", "docker pull + save base images"),
+        ("trivy", "Download Trivy vulnerability DB"),
+        ("check", "Validate offline-cache completeness"),
+        ("load", "docker load from offline-cache/docker"),
     ):
-        add_cmd(name, help_text)
-
-    p_build_base = add_cmd("build-base-offline", "Build base offline image")
-    _add_no_cache_arg(p_build_base)
-
-    p_dev_up = add_cmd("dev-up", "Ensure base, compose build, up")
-    _add_no_cache_arg(p_dev_up)
+        cp = cache_sub.add_parser(cname, help=chelp)
+        _add_project_args(cp)
 
     p_build = add_cmd(
-        "build-offline",
+        "build",
         "Offline build base/backend/frontend",
-        epilog=_BUILD_OFFLINE_EPILOG,
+        epilog=_BUILD_EPILOG,
     )
     p_build.add_argument(
         "targets",
@@ -240,62 +320,154 @@ def main(argv: list[str] | None = None) -> int:
     _add_no_cache_arg(p_build)
 
     p_up = add_cmd(
-        "up-offline",
-        "Compose up offline stack (merge online+offline)",
-        description="Поднять offline-стек (merge compose_up_offline из конфига).",
-        epilog=_UP_OFFLINE_EPILOG,
+        "up",
+        "Compose up (offline / --lab / --online)",
+        description="Поднять стек: offline (default), --lab или --online.",
+        epilog=_UP_EPILOG,
     )
-    p_up.add_argument(
-        "--lab",
-        action="store_true",
-        help="home lab: добавить docker-compose.lab.yml (см. compose_up_offline_lab в конфиге)",
-    )
+    _add_lab_online_group(p_up)
     p_up.add_argument(
         "--no-build",
         action="store_true",
-        help="Не пересобирать образы (deploy уже собранных)",
+        help="Не пересобирать образы (только offline/lab)",
     )
     p_up.add_argument(
         "--no-deps",
         action="store_true",
-        help="Не пересоздавать зависимые сервисы",
+        help="Не пересоздавать зависимые сервисы (только offline/lab)",
     )
     _add_no_cache_arg(p_up)
     p_up.add_argument(
         "services",
         nargs="*",
         default=None,
-        help="backend frontend (default: все сервисы из compose)",
+        help="сервисы (default: все; игнорируется при --online)",
+    )
+
+    p_down = add_cmd(
+        "down",
+        "Compose down (тот же стек, что up)",
+        epilog=_DOWN_EPILOG,
+    )
+    _add_lab_online_group(p_down)
+    p_down.add_argument(
+        "services",
+        nargs="*",
+        default=None,
+        help="сервисы (default: весь стек)",
     )
 
     p_scan = add_cmd(
-        "scan-trivy-offline",
-        "Trivy scan backend/frontend image",
-        description="Trivy scan образа backend или frontend (офлайн, --skip-db-update).",
-        epilog=_SCAN_TRIVY_EPILOG,
+        "scan",
+        "Скан образа (default: trivy)",
+        description="Trivy scan образа backend или frontend (офлайн).",
+        epilog=_SCAN_EPILOG,
     )
     p_scan.add_argument(
-        "target",
-        choices=["backend", "frontend"],
-        help="обязательный: backend или frontend",
+        "scanner_or_target",
+        help="trivy | backend | frontend",
+    )
+    p_scan.add_argument(
+        "target_or_image",
+        nargs="?",
+        default=None,
+        help="target (если первый arg = scanner) или image tag",
     )
     p_scan.add_argument(
         "image",
         nargs="?",
         default=None,
-        help="опционально: тег образа (default: images.<target> из конфига)",
+        help="опциональный тег образа",
     )
 
     add_cmd(
         "tui",
         "Интерактивный Textual TUI (optional: pip install -e \".[tui]\")",
-        description="Terminal UI поверх тех же команд offline-docker.",
+        description="Terminal UI поверх тех же команд offdock.",
         epilog=_TUI_EPILOG,
     )
 
+    for old_name in _DEPRECATED_ALIASES:
+        help_text = f"(deprecated) use '{_DEPRECATED_ALIASES[old_name].replace('-', ' ')}'"
+        if old_name == "scan-trivy-offline":
+            p = add_cmd(old_name, help_text, epilog=_SCAN_EPILOG)
+            p.add_argument("target", choices=["backend", "frontend"])
+            p.add_argument("image", nargs="?", default=None)
+        elif old_name == "build-offline":
+            p = add_cmd(old_name, help_text)
+            p.add_argument("targets", nargs="*", default=None)
+            _add_no_cache_arg(p)
+        elif old_name == "build-base-offline":
+            p = add_cmd(old_name, help_text)
+            _add_no_cache_arg(p)
+        elif old_name == "up-offline":
+            p = add_cmd(old_name, help_text, epilog=_UP_EPILOG)
+            p.add_argument("--lab", action="store_true")
+            p.add_argument("--no-build", action="store_true")
+            p.add_argument("--no-deps", action="store_true")
+            _add_no_cache_arg(p)
+            p.add_argument("services", nargs="*", default=None)
+        elif old_name == "dev-up":
+            p = add_cmd(old_name, help_text)
+            _add_no_cache_arg(p)
+        else:
+            add_cmd(old_name, help_text)
+
+    return parser
+
+
+def _normalize_scan_args(args: argparse.Namespace) -> None:
+    """Resolve scan trivy|backend positional forms into target/image."""
+    first = args.scanner_or_target
+    second = args.target_or_image
+    third = args.image
+    if first in ("backend", "frontend"):
+        args.target = first
+        args.image = second
+        args.scanner = "trivy"
+    elif first == "trivy":
+        if second not in ("backend", "frontend"):
+            raise SystemExit(
+                "scan trivy: нужен target backend|frontend "
+                f"(получено: {second!r})"
+            )
+        args.target = second
+        args.image = third
+        args.scanner = "trivy"
+    else:
+        raise SystemExit(
+            f"scan: неизвестный аргумент {first!r}; "
+            "ожидается trivy|backend|frontend"
+        )
+
+
+def _resolve_action_name(args: argparse.Namespace) -> str:
+    cmd = args.command
+    if cmd == "cache":
+        sub = getattr(args, "cache_cmd", None)
+        if not sub:
+            return "cache"
+        return _CACHE_SUB_TO_ACTION[sub]
+    if cmd in _DEPRECATED_ALIASES:
+        return _DEPRECATED_ALIASES[cmd]
+    return cmd
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI argv (exposed for tests)."""
+    parser = _build_parser()
     args = parser.parse_args(argv)
+    if args.command == "scan":
+        _normalize_scan_args(args)
+    return args
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
 
     if args.command == "configure":
+        from offline_docker.configure import run_configure
+
         run_configure(args)
         return 0
 
@@ -320,13 +492,14 @@ def main(argv: list[str] | None = None) -> int:
             config_file=args.config,
         )
 
-    if args.command in PROJECT_ACTIONS:
+    action = _resolve_action_name(args)
+    if action in DOCKER_ACTIONS:
         docker_cmd.require_docker()
 
     ctx = _load_ctx(args)
 
     try:
-        run_action(args.command, ctx, **_action_opts(args))
+        run_action(action, ctx, **_action_opts(args))
     except docker_cmd.CommandError as exc:
         print(str(exc), file=sys.stderr)
         return exc.returncode
@@ -336,6 +509,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if isinstance(code, int):
             return code
+        return 1
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
         return 1
 
     return 0
