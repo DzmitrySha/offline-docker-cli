@@ -13,11 +13,12 @@ from offline_docker.configure import run_configure
 from offline_docker.resolve import (
     PackageResolver,
     merge_cache_settings,
+    pip_index_chain_for_download,
     sources_from_cache_dict,
 )
 from offline_docker.sources.nexus import NexusSource
 from offline_docker.sources.proget import ProGetSource
-from offline_docker.user_config import save_user_sources
+from offline_docker.user_config import online_fill_dict, save_user_sources
 
 
 class ResolveOrderTest(unittest.TestCase):
@@ -145,45 +146,71 @@ class ResolveOrderTest(unittest.TestCase):
 
 
 class ConfigureNonInteractiveTest(unittest.TestCase):
+    def _ns(self, **kwargs: object) -> mock.Mock:
+        base = dict(
+            local_only=False,
+            with_upstream=False,
+            non_interactive=True,
+            proget_url=None,
+            nexus_url=None,
+            proget_pypi=None,
+            proget_npm=None,
+            proget_deb=None,
+            nexus_pypi=None,
+            nexus_npm=None,
+            nexus_raw=None,
+            order=None,
+        )
+        base.update(kwargs)
+        return mock.Mock(**base)
+
     def test_local_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"OFFLINE_DOCKER_CONFIG_DIR": tmp}):
-                ns = mock.Mock(
-                    local_only=True,
-                    non_interactive=True,
-                    proget_url=None,
-                    nexus_url=None,
-                    proget_pypi=None,
-                    proget_npm=None,
-                    proget_deb=None,
-                    nexus_pypi=None,
-                    nexus_npm=None,
-                    nexus_raw=None,
-                    order=None,
-                )
-                run_configure(ns)
+                run_configure(self._ns(local_only=True))
                 path = Path(tmp) / "sources.json"
                 self.assertTrue(path.is_file())
                 data = json.loads(path.read_text(encoding="utf-8"))
                 self.assertEqual(data["resolve"]["order"], ["local"])
 
+    def test_with_upstream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {"OFFLINE_DOCKER_CONFIG_DIR": tmp}):
+                run_configure(self._ns(with_upstream=True))
+                data = json.loads((Path(tmp) / "sources.json").read_text(encoding="utf-8"))
+                self.assertEqual(data["resolve"]["order"], ["local", "upstream"])
+                settings = merge_cache_settings(
+                    user_data=data,
+                    project_data=None,
+                    pypi_index="https://pypi.org/simple",
+                    pytorch_index="https://download.pytorch.org/whl/cu128",
+                )
+                resolver = PackageResolver(settings)
+                self.assertFalse(resolver.is_local_only())
+                self.assertIn("pypi.org", resolver.pypi_index_chain()[0])
+
+    def test_empty_urls_default_to_upstream(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {"OFFLINE_DOCKER_CONFIG_DIR": tmp}):
+                run_configure(self._ns())
+                data = json.loads((Path(tmp) / "sources.json").read_text(encoding="utf-8"))
+                self.assertEqual(data, online_fill_dict())
+
     def test_both_urls(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"OFFLINE_DOCKER_CONFIG_DIR": tmp}):
-                ns = mock.Mock(
-                    local_only=False,
-                    non_interactive=True,
-                    proget_url="https://proget.vitebsk.energo.net",
-                    nexus_url="http://repos.vitebsk.energo.by:8081",
-                    proget_pypi="ve_pypi",
-                    proget_npm="npm-ve",
-                    proget_deb="local-deb",
-                    nexus_pypi="pypi-group",
-                    nexus_npm="npm-group",
-                    nexus_raw=None,
-                    order="local,proget,nexus",
+                run_configure(
+                    self._ns(
+                        proget_url="https://proget.vitebsk.energo.net",
+                        nexus_url="http://repos.vitebsk.energo.by:8081",
+                        proget_pypi="ve_pypi",
+                        proget_npm="npm-ve",
+                        proget_deb="local-deb",
+                        nexus_pypi="pypi-group",
+                        nexus_npm="npm-group",
+                        order="local,proget,nexus",
+                    )
                 )
-                run_configure(ns)
                 data = json.loads((Path(tmp) / "sources.json").read_text(encoding="utf-8"))
                 self.assertEqual(data["resolve"]["order"], ["local", "proget", "nexus"])
                 settings = sources_from_cache_dict(data)
@@ -192,6 +219,47 @@ class ConfigureNonInteractiveTest(unittest.TestCase):
                 self.assertIn("pypi-group", resolver.pypi_index_chain()[1])
                 self.assertTrue(any(isinstance(s, ProGetSource) for s in resolver.sources()))
                 self.assertTrue(any(isinstance(s, NexusSource) for s in resolver.sources()))
+
+
+class DownloadIndexFallbackTest(unittest.TestCase):
+    def test_local_only_fallback_chain(self) -> None:
+        settings = merge_cache_settings(
+            user_data=None,
+            project_data=None,
+            pypi_index="https://pypi.org/simple",
+            pytorch_index="https://download.pytorch.org/whl/cu128",
+        )
+        resolver = PackageResolver(settings)
+        chain, fallback = pip_index_chain_for_download(
+            resolver,
+            pypi_index="https://pypi.org/simple",
+            pytorch_index="https://download.pytorch.org/whl/cu128",
+        )
+        self.assertTrue(fallback)
+        self.assertEqual(
+            chain,
+            [
+                "https://pypi.org/simple",
+                "https://download.pytorch.org/whl/cu128",
+            ],
+        )
+
+    def test_upstream_no_fallback(self) -> None:
+        settings = merge_cache_settings(
+            user_data=online_fill_dict(),
+            project_data=None,
+            pypi_index="https://pypi.org/simple",
+            pytorch_index="https://download.pytorch.org/whl/cu128",
+        )
+        resolver = PackageResolver(settings)
+        chain, fallback = pip_index_chain_for_download(
+            resolver,
+            pypi_index="https://pypi.org/simple",
+            pytorch_index="https://download.pytorch.org/whl/cu128",
+        )
+        self.assertFalse(fallback)
+        self.assertEqual(chain[0], "https://pypi.org/simple")
+        self.assertIn("pytorch.org", chain[1])
 
 
 class LoadConfigCacheMergeTest(unittest.TestCase):
