@@ -268,6 +268,38 @@ def build_resolver_from_dicts(
     return PackageResolver(settings)
 
 
+def pip_index_chain_for_download(
+    resolver: PackageResolver,
+    *,
+    pypi_index: str,
+    pytorch_index: str,
+) -> tuple[list[str], bool]:
+    """HTTP indexes for download-wheels.
+
+    Returns (chain, used_local_only_fallback).
+    When sources.json is local-only, chain is empty — we temporarily use
+    project/env PyPI + PyTorch indexes so download-* can fill the cache.
+    Prefer `offline-docker configure --with-upstream` to make that explicit.
+    """
+    chain = list(resolver.pypi_index_chain())
+    used_fallback = False
+    if not chain:
+        chain = [pypi_index, pytorch_index]
+        used_fallback = True
+    elif pytorch_index and pytorch_index.rstrip("/") not in {
+        u.rstrip("/") for u in chain
+    }:
+        chain.append(pytorch_index)
+
+    # PYPI_INDEX env forces first index when set explicitly
+    if os.environ.get("PYPI_INDEX"):
+        forced = pypi_index.rstrip("/")
+        chain = [pypi_index] + [
+            u for u in chain if u.rstrip("/") != forced
+        ]
+    return chain, used_fallback
+
+
 def iter_publish_targets(resolver: PackageResolver) -> Iterable[PackageSource]:
     for src in resolver.sources():
         if getattr(src, "publish", False):
