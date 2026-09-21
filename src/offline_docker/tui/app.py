@@ -13,7 +13,7 @@ from offline_docker.tui.screens import HomeScreen
 class OfflineDockerApp(App[None]):
     """Interactive TUI for offline-docker actions."""
 
-    TITLE = "offline-docker"
+    TITLE = "offdock"
     CSS = """
     Screen {
         background: $surface;

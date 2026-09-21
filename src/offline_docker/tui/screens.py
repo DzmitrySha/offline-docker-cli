@@ -30,21 +30,22 @@ from offline_docker.tui.runner import run_action_captured
 # User-facing command list (order matters).
 _COMMANDS: list[tuple[str, str]] = [
     ("discover", "Discover dependencies"),
-    ("validate-offline-cache", "Validate offline-cache"),
-    ("download-offline-cache", "Download full offline-cache"),
-    ("download-wheels", "Download wheels"),
-    ("download-debs", "Download debs"),
-    ("download-npm-cache", "Download npm cache"),
-    ("download-yarn-cache", "Download yarn cache"),
-    ("download-docker-images", "Download docker images"),
-    ("download-trivy-db", "Download Trivy DB"),
-    ("load-docker-images", "Load docker images"),
-    ("build-offline", "Build offline (base/backend/frontend)"),
-    ("build-base-offline", "Build base offline"),
-    ("up-offline", "Compose up offline"),
-    ("dev-up", "Dev up (online)"),
-    ("scan-trivy-offline:backend", "Trivy scan backend"),
-    ("scan-trivy-offline:frontend", "Trivy scan frontend"),
+    ("cache-check", "Validate offline-cache"),
+    ("cache", "Download full offline-cache"),
+    ("cache-wheels", "Download wheels"),
+    ("cache-debs", "Download debs"),
+    ("cache-npm", "Download npm cache"),
+    ("cache-yarn", "Download yarn cache"),
+    ("cache-images", "Download docker images"),
+    ("cache-trivy", "Download Trivy DB"),
+    ("cache-load", "Load docker images"),
+    ("build", "Build offline (base/backend/frontend)"),
+    ("build-base", "Build base offline"),
+    ("up", "Compose up offline"),
+    ("up-online", "Up online (compose_online)"),
+    ("down", "Compose down"),
+    ("scan:backend", "Trivy scan backend"),
+    ("scan:frontend", "Trivy scan frontend"),
 ]
 
 
@@ -132,7 +133,7 @@ class HomeScreen(Screen[None]):
         assert isinstance(app, OfflineDockerApp)
         yield Header(show_clock=False)
         with Vertical():
-            yield Static("offline-docker TUI", classes="title")
+            yield Static("offdock TUI", classes="title")
             with Horizontal(id="project-row"):
                 yield Label("Project:")
                 yield Input(value=str(app.project), id="project-input")
@@ -142,7 +143,8 @@ class HomeScreen(Screen[None]):
             yield DataTable(id="status-table", zebra_stripes=True)
             with Horizontal(id="flags"):
                 yield Checkbox("no-cache", id="flag-no-cache")
-                yield Checkbox("lab (up-offline)", id="flag-lab")
+                yield Checkbox("lab (up)", id="flag-lab")
+                yield Checkbox("online (up/down)", id="flag-online")
                 yield Checkbox("no-build", id="flag-no-build")
                 yield Checkbox("no-deps", id="flag-no-deps")
             yield Label("Commands (Enter / Run):")
@@ -273,12 +275,20 @@ class HomeScreen(Screen[None]):
         opts: dict = {
             "no_cache": self._flag("flag-no-cache"),
             "lab": self._flag("flag-lab"),
+            "online": self._flag("flag-online"),
             "no_build": self._flag("flag-no-build"),
             "no_deps": self._flag("flag-no-deps"),
         }
-        if key.startswith("scan-trivy-offline:"):
-            name = "scan-trivy-offline"
+        if key.startswith("scan:"):
+            name = "scan"
             opts["target"] = key.split(":", 1)[1]
+        if name == "up-online":
+            name = "up"
+            opts["online"] = True
+            opts["lab"] = False
+        if opts.get("lab") and opts.get("online"):
+            self.notify("--lab и --online взаимоисключающие; снимите один флаг", severity="warning")
+            return
 
         if name not in PROJECT_ACTIONS:
             self.notify(f"Неизвестная команда: {name}", severity="error")
