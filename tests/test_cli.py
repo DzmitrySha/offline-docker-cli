@@ -68,19 +68,13 @@ class ParseArgsTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["scan", "grype", "backend"])
 
-    def test_deprecated_alias_download(self) -> None:
-        args = parse_args(["download-offline-cache"])
-        self.assertEqual(_resolve_action_name(args), "cache")
-
-    def test_deprecated_dev_up(self) -> None:
-        args = parse_args(["dev-up", "--no-cache"])
-        self.assertEqual(_resolve_action_name(args), "up-online")
-        self.assertTrue(args.no_cache)
-
-    def test_deprecated_scan(self) -> None:
-        args = parse_args(["scan-trivy-offline", "backend"])
-        self.assertEqual(_resolve_action_name(args), "scan")
-        self.assertEqual(args.target, "backend")
+    def test_old_commands_rejected(self) -> None:
+        with self.assertRaises(SystemExit):
+            parse_args(["download-offline-cache"])
+        with self.assertRaises(SystemExit):
+            parse_args(["dev-up"])
+        with self.assertRaises(SystemExit):
+            parse_args(["scan-trivy-offline", "backend"])
 
     def test_version(self) -> None:
         with self.assertRaises(SystemExit) as ctx:
@@ -89,19 +83,26 @@ class ParseArgsTest(unittest.TestCase):
 
 
 class ResolveActionTest(unittest.TestCase):
-    def test_aliases_map(self) -> None:
-        self.assertEqual(resolve_action("download-wheels"), "cache-wheels")
-        self.assertEqual(resolve_action("build-offline"), "build")
-        self.assertEqual(resolve_action("up-offline"), "up")
-        self.assertEqual(resolve_action("dev-up"), "up-online")
-        self.assertEqual(resolve_action("scan-trivy-offline"), "scan")
+    def test_canonical_names(self) -> None:
+        self.assertEqual(resolve_action("cache-wheels"), "cache-wheels")
+        self.assertEqual(resolve_action("build"), "build")
+        self.assertEqual(resolve_action("up"), "up")
+        self.assertEqual(resolve_action("up-online"), "up-online")
         self.assertEqual(resolve_action("down"), "down")
+        self.assertEqual(resolve_action("scan"), "scan")
 
-    def test_project_actions_include_new_and_old(self) -> None:
+    def test_old_names_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            resolve_action("download-offline-cache")
+        with self.assertRaises(ValueError):
+            resolve_action("build-offline")
+
+    def test_project_actions_canonical_only(self) -> None:
         self.assertIn("cache", PROJECT_ACTIONS)
-        self.assertIn("download-offline-cache", PROJECT_ACTIONS)
         self.assertIn("down", PROJECT_ACTIONS)
         self.assertIn("up", PROJECT_ACTIONS)
+        self.assertNotIn("download-offline-cache", PROJECT_ACTIONS)
+        self.assertNotIn("up-offline", PROJECT_ACTIONS)
 
 
 class DownStackDispatchTest(unittest.TestCase):

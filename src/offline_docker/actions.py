@@ -25,48 +25,9 @@ from offline_docker.trivy_scan import scan_trivy_offline
 from offline_docker.validate import validate_offline_cache
 
 # Canonical action names (CLI 2.x).
-_CANONICAL: dict[str, str] = {
-    # cache group
-    "cache": "cache",
-    "cache-wheels": "cache-wheels",
-    "cache-debs": "cache-debs",
-    "cache-npm": "cache-npm",
-    "cache-yarn": "cache-yarn",
-    "cache-images": "cache-images",
-    "cache-trivy": "cache-trivy",
-    "cache-check": "cache-check",
-    "cache-load": "cache-load",
-    # daily
-    "discover": "discover",
-    "build": "build",
-    "up": "up",
-    "down": "down",
-    "scan": "scan",
-    # deprecated aliases → canonical
-    "download-offline-cache": "cache",
-    "download-wheels": "cache-wheels",
-    "download-debs": "cache-debs",
-    "download-npm-cache": "cache-npm",
-    "download-yarn-cache": "cache-yarn",
-    "download-docker-images": "cache-images",
-    "download-trivy-db": "cache-trivy",
-    "validate-offline-cache": "cache-check",
-    "load-docker-images": "cache-load",
-    "build-offline": "build",
-    "build-base-offline": "build-base",
-    "build-base": "build-base",
-    "dev-up": "up-online",
-    "up-online": "up-online",
-    "up-offline": "up",
-    "scan-trivy-offline": "scan",
-}
-
-# Actions that need a ProjectContext (not configure/init).
-PROJECT_ACTIONS = frozenset(_CANONICAL.keys())
-
-# Canonical names that shell out to docker / compose.
-_DOCKER_CANONICAL = frozenset(
+PROJECT_ACTIONS = frozenset(
     {
+        "discover",
         "cache",
         "cache-wheels",
         "cache-debs",
@@ -74,6 +35,7 @@ _DOCKER_CANONICAL = frozenset(
         "cache-yarn",
         "cache-images",
         "cache-trivy",
+        "cache-check",
         "cache-load",
         "build",
         "build-base",
@@ -84,16 +46,14 @@ _DOCKER_CANONICAL = frozenset(
     }
 )
 
-DOCKER_ACTIONS = frozenset(
-    name for name, canon in _CANONICAL.items() if canon in _DOCKER_CANONICAL
-)
+DOCKER_ACTIONS = frozenset(PROJECT_ACTIONS - {"discover", "cache-check"})
 
 
 def resolve_action(name: str) -> str:
-    """Map deprecated or canonical name to canonical action key."""
-    if name not in _CANONICAL:
+    """Validate and return a canonical action name."""
+    if name not in PROJECT_ACTIONS:
         raise ValueError(f"Unknown action: {name}")
-    return _CANONICAL[name]
+    return name
 
 
 def download_offline_cache(ctx: ProjectContext) -> None:
@@ -127,7 +87,7 @@ def run_action(name: str, ctx: ProjectContext, **opts: Any) -> None:
     Supported opts (by action):
       build / build-base / up-online: no_cache
       build: targets (list[str] | None)
-      up: lab, no_build, no_deps, services, no_cache
+      up: lab, no_build, no_deps, services, no_cache, online
       down: lab, online, services
       scan: target, image (scanner defaults to trivy)
     """

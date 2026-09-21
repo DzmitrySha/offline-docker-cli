@@ -16,6 +16,8 @@ _MAIN_EPILOG = """\
   offdock init -p .
   offdock discover -p .
   offdock cache -p /path/to/project
+  offdock cache check -p .          # проверка полноты offline-cache
+  offdock cache load -p .           # *.tar -> docker load
   offdock build -p .
   offdock up -p . --lab
   offdock down -p .
@@ -27,7 +29,6 @@ _MAIN_EPILOG = """\
 init: рекурсивный черновик .offline-docker.json (или .generated.json если канон есть)
 конфиг целевого проекта: .offline-docker.json (шаблон: examples/offline-docker.json.example)
 TUI (опционально): pip install -e ".[tui]" && offdock tui
-alias: offline-docker (deprecated) → тот же CLI
 подробнее: offdock <команда> --help
 """
 
@@ -46,15 +47,18 @@ offline-Dockerfile / compose.offline НЕ генерируются — толь�
 
 _CACHE_EPILOG = """\
 примеры:
-  offdock cache                 # полный offline-cache
+  offdock cache                 # полный download offline-cache
   offdock cache wheels
   offdock cache debs
   offdock cache npm
   offdock cache yarn
   offdock cache images
   offdock cache trivy
-  offdock cache check           # validate
-  offdock cache load            # *.tar → docker load
+  offdock cache check -p .      # проверить полноту кэша в проекте
+  offdock cache load -p .       # *.tar -> docker load в локальный daemon
+
+cache check - валидация offline-cache (wheels/debs/npm/images/...),
+бывший validate-offline-cache. Не качает ничего, только проверяет.
 """
 
 _UP_EPILOG = """\
@@ -70,7 +74,7 @@ _UP_EPILOG = """\
 режимы (взаимоисключающие --lab / --online):
   без флагов  offline-стек (compose_up_offline)
   --lab       offline + docker-compose.lab.yml
-  --online    только compose_online (бывший dev-up)
+  --online    только compose_online
 
 --lab:
   Подключает docker-compose.lab.yml к merge-стеку.
@@ -139,24 +143,6 @@ _CACHE_SUB_TO_ACTION = {
     "load": "cache-load",
 }
 
-# Flat deprecated command → canonical action name for run_action.
-_DEPRECATED_ALIASES: dict[str, str] = {
-    "download-offline-cache": "cache",
-    "download-wheels": "cache-wheels",
-    "download-debs": "cache-debs",
-    "download-npm-cache": "cache-npm",
-    "download-yarn-cache": "cache-yarn",
-    "download-docker-images": "cache-images",
-    "download-trivy-db": "cache-trivy",
-    "validate-offline-cache": "cache-check",
-    "load-docker-images": "cache-load",
-    "build-offline": "build",
-    "build-base-offline": "build-base",
-    "up-offline": "up",
-    "dev-up": "up-online",
-    "scan-trivy-offline": "scan",
-}
-
 
 def _add_no_cache_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
@@ -192,7 +178,7 @@ def _add_lab_online_group(parser: argparse.ArgumentParser) -> None:
     mode.add_argument(
         "--online",
         action="store_true",
-        help="online compose (compose_online; бывший dev-up)",
+        help="online compose (compose_online)",
     )
 
 
@@ -289,19 +275,23 @@ def _build_parser() -> argparse.ArgumentParser:
     p_cache = add_cmd(
         "cache",
         "Скачать / проверить / загрузить offline-cache",
-        description="Без подкоманды — полный download. Подкоманды: wheels, debs, …",
+        description=(
+            "Без подкоманды — полный download. "
+            "Подкоманды: wheels, debs, npm, yarn, images, trivy, "
+            "check (валидация кэша), load (docker load)."
+        ),
         epilog=_CACHE_EPILOG,
     )
     cache_sub = p_cache.add_subparsers(dest="cache_cmd", required=False)
     for cname, chelp in (
-        ("wheels", "Download Python wheels"),
-        ("debs", "Download .deb packages"),
-        ("npm", "Download npm cache"),
-        ("yarn", "Download yarn cache"),
-        ("images", "docker pull + save base images"),
-        ("trivy", "Download Trivy vulnerability DB"),
-        ("check", "Validate offline-cache completeness"),
-        ("load", "docker load from offline-cache/docker"),
+        ("wheels", "Скачать Python wheels"),
+        ("debs", "Скачать .deb пакеты"),
+        ("npm", "Скачать npm cache"),
+        ("yarn", "Скачать yarn cache"),
+        ("images", "docker pull + save базовых образов"),
+        ("trivy", "Скачать БД уязвимостей Trivy"),
+        ("check", "Проверить полноту offline-cache в проекте"),
+        ("load", "docker load из offline-cache/docker"),
     ):
         cp = cache_sub.add_parser(cname, help=chelp)
         _add_project_args(cp)
@@ -387,32 +377,6 @@ def _build_parser() -> argparse.ArgumentParser:
         epilog=_TUI_EPILOG,
     )
 
-    for old_name in _DEPRECATED_ALIASES:
-        help_text = f"(deprecated) use '{_DEPRECATED_ALIASES[old_name].replace('-', ' ')}'"
-        if old_name == "scan-trivy-offline":
-            p = add_cmd(old_name, help_text, epilog=_SCAN_EPILOG)
-            p.add_argument("target", choices=["backend", "frontend"])
-            p.add_argument("image", nargs="?", default=None)
-        elif old_name == "build-offline":
-            p = add_cmd(old_name, help_text)
-            p.add_argument("targets", nargs="*", default=None)
-            _add_no_cache_arg(p)
-        elif old_name == "build-base-offline":
-            p = add_cmd(old_name, help_text)
-            _add_no_cache_arg(p)
-        elif old_name == "up-offline":
-            p = add_cmd(old_name, help_text, epilog=_UP_EPILOG)
-            p.add_argument("--lab", action="store_true")
-            p.add_argument("--no-build", action="store_true")
-            p.add_argument("--no-deps", action="store_true")
-            _add_no_cache_arg(p)
-            p.add_argument("services", nargs="*", default=None)
-        elif old_name == "dev-up":
-            p = add_cmd(old_name, help_text)
-            _add_no_cache_arg(p)
-        else:
-            add_cmd(old_name, help_text)
-
     return parser
 
 
@@ -448,8 +412,6 @@ def _resolve_action_name(args: argparse.Namespace) -> str:
         if not sub:
             return "cache"
         return _CACHE_SUB_TO_ACTION[sub]
-    if cmd in _DEPRECATED_ALIASES:
-        return _DEPRECATED_ALIASES[cmd]
     return cmd
 
 
