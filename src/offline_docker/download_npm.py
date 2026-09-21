@@ -53,6 +53,7 @@ def download_npm_cache(ctx: ProjectContext) -> None:
 
     resolver = ctx.config.package_resolver()
     registry = resolver.primary_npm_registry() or "https://registry.npmjs.org/"
+    used_default = resolver.primary_npm_registry() is None
 
     frontend_docker = docker_mount_path(fe)
     npm_docker = docker_mount_path(ctx.npm_cache_dir)
@@ -63,6 +64,14 @@ def download_npm_cache(ctx: ProjectContext) -> None:
     print(f"Node image:     {ctx.config.node_image}")
     print(f"Resolve:        {' -> '.join(resolver.settings.resolve.order)}")
     print(f"npm registry:   {registry}")
+    if used_default and resolver.is_local_only():
+        print(
+            "WARN: sources.json = local-only; для download используется "
+            "https://registry.npmjs.org/"
+        )
+        print(
+            "      Явный режим: offline-docker configure --with-upstream"
+        )
 
     docker_cmd.run(
         [
