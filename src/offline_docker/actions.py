@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from offline_docker import docker_cmd
-from offline_docker.build import build_base_offline_cmd, build_offline, dev_up, up_offline
+from offline_docker.build import (
+    build_base_offline_cmd,
+    build_offline,
+    down_stack,
+    up_offline,
+    up_online,
+)
 from offline_docker.context import ProjectContext
 from offline_docker.discover import format_discovery_report
 from offline_docker.download_debs import download_debs
@@ -18,34 +24,81 @@ from offline_docker.load_images import load_docker_images
 from offline_docker.trivy_scan import scan_trivy_offline
 from offline_docker.validate import validate_offline_cache
 
+# Canonical action names (CLI 2.x).
+_CANONICAL: dict[str, str] = {
+    # cache group
+    "cache": "cache",
+    "cache-wheels": "cache-wheels",
+    "cache-debs": "cache-debs",
+    "cache-npm": "cache-npm",
+    "cache-yarn": "cache-yarn",
+    "cache-images": "cache-images",
+    "cache-trivy": "cache-trivy",
+    "cache-check": "cache-check",
+    "cache-load": "cache-load",
+    # daily
+    "discover": "discover",
+    "build": "build",
+    "up": "up",
+    "down": "down",
+    "scan": "scan",
+    # deprecated aliases → canonical
+    "download-offline-cache": "cache",
+    "download-wheels": "cache-wheels",
+    "download-debs": "cache-debs",
+    "download-npm-cache": "cache-npm",
+    "download-yarn-cache": "cache-yarn",
+    "download-docker-images": "cache-images",
+    "download-trivy-db": "cache-trivy",
+    "validate-offline-cache": "cache-check",
+    "load-docker-images": "cache-load",
+    "build-offline": "build",
+    "build-base-offline": "build-base",
+    "build-base": "build-base",
+    "dev-up": "up-online",
+    "up-online": "up-online",
+    "up-offline": "up",
+    "scan-trivy-offline": "scan",
+}
+
 # Actions that need a ProjectContext (not configure/init).
-PROJECT_ACTIONS = frozenset(
+PROJECT_ACTIONS = frozenset(_CANONICAL.keys())
+
+# Canonical names that shell out to docker / compose.
+_DOCKER_CANONICAL = frozenset(
     {
-        "discover",
-        "download-wheels",
-        "download-debs",
-        "download-npm-cache",
-        "download-yarn-cache",
-        "download-docker-images",
-        "download-trivy-db",
-        "download-offline-cache",
-        "validate-offline-cache",
-        "load-docker-images",
-        "build-base-offline",
-        "build-offline",
-        "dev-up",
-        "up-offline",
-        "scan-trivy-offline",
+        "cache",
+        "cache-wheels",
+        "cache-debs",
+        "cache-npm",
+        "cache-yarn",
+        "cache-images",
+        "cache-trivy",
+        "cache-load",
+        "build",
+        "build-base",
+        "up",
+        "up-online",
+        "down",
+        "scan",
     }
 )
 
-# Subset that shell out to docker / compose.
-DOCKER_ACTIONS = frozenset(PROJECT_ACTIONS - {"discover", "validate-offline-cache"})
+DOCKER_ACTIONS = frozenset(
+    name for name, canon in _CANONICAL.items() if canon in _DOCKER_CANONICAL
+)
+
+
+def resolve_action(name: str) -> str:
+    """Map deprecated or canonical name to canonical action key."""
+    if name not in _CANONICAL:
+        raise ValueError(f"Unknown action: {name}")
+    return _CANONICAL[name]
 
 
 def download_offline_cache(ctx: ProjectContext) -> None:
     print("========================================")
-    print(" download-offline-cache (полный набор)")
+    print(" cache (полный набор)")
     print(f" Project: {ctx.root}")
     print("========================================")
     print()
@@ -72,48 +125,48 @@ def run_action(name: str, ctx: ProjectContext, **opts: Any) -> None:
     """Run a project-scoped action by name.
 
     Supported opts (by action):
-      build-base-offline / build-offline / dev-up / up-offline: no_cache
-      build-offline: targets (list[str] | None)
-      up-offline: lab, no_build, no_deps, services
-      scan-trivy-offline: target, image
+      build / build-base / up-online: no_cache
+      build: targets (list[str] | None)
+      up: lab, no_build, no_deps, services, no_cache
+      down: lab, online, services
+      scan: target, image (scanner defaults to trivy)
     """
-    if name not in PROJECT_ACTIONS:
-        raise ValueError(f"Unknown action: {name}")
+    canon = resolve_action(name)
 
-    if name == "discover":
+    if canon == "discover":
         print(format_discovery_report(ctx.config))
         return
-    if name == "download-wheels":
+    if canon == "cache-wheels":
         download_wheels(ctx)
         return
-    if name == "download-debs":
+    if canon == "cache-debs":
         download_debs(ctx)
         return
-    if name == "download-npm-cache":
+    if canon == "cache-npm":
         download_npm_cache(ctx)
         return
-    if name == "download-yarn-cache":
+    if canon == "cache-yarn":
         download_yarn_cache(ctx)
         return
-    if name == "download-docker-images":
+    if canon == "cache-images":
         download_docker_images(ctx)
         return
-    if name == "download-trivy-db":
+    if canon == "cache-trivy":
         download_trivy_db(ctx)
         return
-    if name == "download-offline-cache":
+    if canon == "cache":
         download_offline_cache(ctx)
         return
-    if name == "validate-offline-cache":
+    if canon == "cache-check":
         validate_offline_cache(ctx)
         return
-    if name == "load-docker-images":
+    if canon == "cache-load":
         load_docker_images(ctx)
         return
-    if name == "build-base-offline":
+    if canon == "build-base":
         build_base_offline_cmd(ctx, no_cache=bool(opts.get("no_cache")))
         return
-    if name == "build-offline":
+    if canon == "build":
         targets = opts.get("targets")
         build_offline(
             ctx,
@@ -121,10 +174,13 @@ def run_action(name: str, ctx: ProjectContext, **opts: Any) -> None:
             no_cache=bool(opts.get("no_cache")),
         )
         return
-    if name == "dev-up":
-        dev_up(ctx, no_cache=bool(opts.get("no_cache")))
+    if canon == "up-online":
+        up_online(ctx, no_cache=bool(opts.get("no_cache")))
         return
-    if name == "up-offline":
+    if canon == "up":
+        if opts.get("online"):
+            up_online(ctx, no_cache=bool(opts.get("no_cache")))
+            return
         services = opts.get("services")
         up_offline(
             ctx,
@@ -135,11 +191,21 @@ def run_action(name: str, ctx: ProjectContext, **opts: Any) -> None:
             services=list(services) if services else None,
         )
         return
-    if name == "scan-trivy-offline":
+    if canon == "down":
+        services = opts.get("services")
+        down_stack(
+            ctx,
+            lab=bool(opts.get("lab")),
+            online=bool(opts.get("online")),
+            services=list(services) if services else None,
+        )
+        return
+    if canon == "scan":
         target = opts.get("target")
         if target not in ("backend", "frontend"):
-            raise ValueError("scan-trivy-offline requires target=backend|frontend")
+            raise ValueError("scan requires target=backend|frontend")
+        # Future: opts.get("scanner", "trivy")
         scan_trivy_offline(ctx, target, opts.get("image"))
         return
 
-    raise ValueError(f"Unhandled action: {name}")
+    raise ValueError(f"Unhandled action: {canon}")
