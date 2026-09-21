@@ -56,6 +56,8 @@ class RunActionTest(unittest.TestCase):
     def test_project_actions_nonempty(self) -> None:
         self.assertIn("discover", PROJECT_ACTIONS)
         self.assertIn("download-offline-cache", PROJECT_ACTIONS)
+        self.assertIn("cache", PROJECT_ACTIONS)
+        self.assertIn("down", PROJECT_ACTIONS)
 
 
 if __name__ == "__main__":
