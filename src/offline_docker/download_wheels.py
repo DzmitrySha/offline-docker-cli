@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 from offline_docker import docker_cmd
 from offline_docker.context import ProjectContext
@@ -71,9 +72,48 @@ pip_common=(
   --dest "$WHEELS"
   --prefer-binary
   --ignore-requires-python
+  --retries 5
+  --timeout 60
   --find-links "$WHEELS"
   "${pip_index_args[@]}"
 )
+
+# Index-only (без find-links) — recovery, когда в /wheels лежит чужая версия пакета
+pip_index_only=(
+  --dest "$WHEELS"
+  --prefer-binary
+  --ignore-requires-python
+  --retries 5
+  --timeout 60
+  "${pip_index_args[@]}"
+)
+
+download_req_file() {
+  # $1=requirements path; $2=optional "no-deps"
+  local req="$1"
+  local no_deps="${2:-}"
+  local extra=( )
+  local deps_flag=( )
+  if [[ "$no_deps" == "no-deps" ]]; then
+    deps_flag=( --no-deps )
+  fi
+  if [[ -n "$TORCH_VERSION" && -f /tmp/constraints.txt ]]; then
+    extra=( -c /tmp/constraints.txt )
+  fi
+  if [[ -f /opt/prune_stale_wheels.py ]]; then
+    echo ">>> prune stale wheels vs ${req}"
+    python3 /opt/prune_stale_wheels.py "$req" "$WHEELS" || true
+  fi
+  if pip download "${pip_common[@]}" "${deps_flag[@]}" "${extra[@]}" -r "$req"; then
+    return 0
+  fi
+  echo "WARN: pip download -r failed; retry via index (без find-links)" >&2
+  if [[ -f /opt/prune_stale_wheels.py ]]; then
+    python3 /opt/prune_stale_wheels.py "$req" "$WHEELS" || true
+  fi
+  # Повтор без find-links — убирает «from versions: только локальная»
+  pip download "${pip_index_only[@]}" "${deps_flag[@]}" "${extra[@]}" -r "$req"
+}
 
 echo ""
 echo ">>> [1/4] pip, uv, setuptools, wheel"
@@ -114,18 +154,20 @@ if [[ "$USE_UV" == "1" ]]; then
     "${prune_args[@]}" \
     --no-hashes \
     -o /tmp/app-requirements.txt
+  # --no-deps: uv export уже полный + учитывает override-dependencies
+  # (напр. ctranslate2>=4.5 при whisperx, который пинит <4.5). pip иначе
+  # падает с ResolutionImpossible.
   if [[ -n "$TORCH_VERSION" ]]; then
     printf 'torch==%s\ntorchaudio==%s\n' "$TORCH_VERSION" "$TORCH_VERSION" > /tmp/constraints.txt
-    pip download "${pip_common[@]}" -c /tmp/constraints.txt -r /tmp/app-requirements.txt
-    rm -f /wheels/torch-2.1[0-9].0-*.whl /wheels/torch-2.13*.whl \
-          /wheels/torchaudio-2.1[0-9]* /wheels/torchaudio-2.2* 2>/dev/null || true
-  else
-    pip download "${pip_common[@]}" -r /tmp/app-requirements.txt
   fi
+  download_req_file /tmp/app-requirements.txt no-deps
+  rm -f /wheels/torch-2.1[0-9].0-*.whl /wheels/torch-2.13*.whl \
+        /wheels/torchaudio-2.1[0-9]* /wheels/torchaudio-2.2* 2>/dev/null || true
 elif [[ -f /app/requirements.txt ]]; then
   echo ""
   echo ">>> [3/4] requirements.txt (без uv.lock)"
-  pip download "${pip_common[@]}" -r /app/requirements.txt
+  cp /app/requirements.txt /tmp/app-requirements.txt
+  download_req_file /tmp/app-requirements.txt
 fi
 
 echo ""
@@ -198,19 +240,13 @@ def download_wheels(ctx: ProjectContext) -> None:
     pytorch_index = os.environ.get("PYTORCH_INDEX", ctx.config.pytorch_index)
     pypi_index = os.environ.get("PYPI_INDEX", ctx.config.pypi_index)
     resolver = ctx.config.package_resolver()
-    chain = list(resolver.pypi_index_chain())
-    # Legacy env / config indexes when no remote sources configured
-    if not chain:
-        chain = [pypi_index, pytorch_index]
-    else:
-        if pytorch_index and pytorch_index.rstrip("/") not in {
-            u.rstrip("/") for u in chain
-        }:
-            chain.append(pytorch_index)
-    # PYPI_INDEX env forces first index when set explicitly
-    if os.environ.get("PYPI_INDEX"):
-        chain = [pypi_index] + [u for u in chain if u.rstrip("/") != pypi_index.rstrip("/")]
+    from offline_docker.resolve import pip_index_chain_for_download
 
+    chain, used_fallback = pip_index_chain_for_download(
+        resolver,
+        pypi_index=pypi_index,
+        pytorch_index=pytorch_index,
+    )
     pip_index_args: list[str] = []
     if chain:
         pip_index_args.extend(["--index-url", chain[0]])
@@ -220,6 +256,10 @@ def download_wheels(ctx: ProjectContext) -> None:
 
     root_docker = docker_mount_path(ctx.root)
     wheels_docker = docker_mount_path(ctx.wheels_dir)
+    import offline_docker.wheel_prune as wheel_prune
+
+    prune_host = Path(wheel_prune.__file__).resolve()
+    prune_docker = docker_mount_path(prune_host)
 
     print("=== download-wheels ===")
     print(f"Корень:           {ctx.root}")
@@ -230,6 +270,16 @@ def download_wheels(ctx: ProjectContext) -> None:
     print(f"python project:   {ctx.config.effective_python_project_dir()}")
     print(f"Resolve:          {' -> '.join(resolver.settings.resolve.order)}")
     print(f"PyPI chain:       {' -> '.join(chain) if chain else '(find-links only)'}")
+    if used_fallback and resolver.is_local_only():
+        print()
+        print(
+            "WARN: sources.json = local-only; для download временно добавлен "
+            "PyPI/PyTorch index."
+        )
+        print(
+            "      Для явного режима заполнения кэша: "
+            "offline-docker configure --with-upstream"
+        )
     print()
 
     from offline_docker.sync_cache import maybe_materialize
@@ -261,6 +311,8 @@ def download_wheels(ctx: ProjectContext) -> None:
             f"{root_docker}:/app:ro",
             "-v",
             f"{wheels_docker}:/wheels",
+            "-v",
+            f"{prune_docker}:/opt/prune_stale_wheels.py:ro",
             ctx.config.deb_ubuntu_image,
             "bash",
             "-ec",
