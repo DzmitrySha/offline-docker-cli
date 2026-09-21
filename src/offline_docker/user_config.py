@@ -28,12 +28,34 @@ def user_sources_path() -> Path:
 
 
 def local_only_dict() -> dict[str, Any]:
+    """Offline / corp VM: только offline-cache (без HTTP index в resolve.order)."""
     return {
         "sources": [
             {"name": "local", "type": "filesystem", "enabled": True},
         ],
         "resolve": {
             "order": ["local"],
+            "fill_local": True,
+            "on_miss": "fail",
+        },
+    }
+
+
+def online_fill_dict() -> dict[str, Any]:
+    """Машина с сетью: local + PyPI/npmjs upstream для download-* (fill_local)."""
+    return {
+        "sources": [
+            {"name": "local", "type": "filesystem", "enabled": True},
+            {
+                "name": "upstream",
+                "type": "upstream",
+                "enabled": True,
+                "pypi_index": "https://pypi.org/simple",
+                "npm_registry": "https://registry.npmjs.org/",
+            },
+        ],
+        "resolve": {
+            "order": ["local", "upstream"],
             "fill_local": True,
             "on_miss": "fail",
         },
