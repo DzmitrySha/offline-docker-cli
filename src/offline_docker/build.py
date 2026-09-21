@@ -35,7 +35,7 @@ def build_base_offline_cmd(ctx: ProjectContext, *, no_cache: bool = False) -> No
     image = os.environ.get("IMAGE", ctx.config.images.base)
     ctx.set_offline_cache_env()
 
-    print("=== build-base-offline ===")
+    print("=== build base ===")
     print(f"Project:       {ctx.root}")
     print(f"Offline cache: {ctx.offline_cache}")
     print(f"Image:         {image}")
@@ -63,7 +63,7 @@ def build_offline(
     compose_args = ctx.config.compose_build_file_args()
     env_file_args = ctx.config.compose_env_file_args()
 
-    print("=== build-offline ===")
+    print("=== build ===")
     print(f"Project:       {ctx.root}")
     print(f"Offline cache: {ctx.offline_cache}")
     print(f"Compose:       {' '.join(compose_args)}")
@@ -119,11 +119,12 @@ def build_offline(
     print(f"=== Готово. Логи: {ctx.log_dir}/offline-build-*.log ===")
 
 
-def dev_up(ctx: ProjectContext, *, no_cache: bool = False) -> None:
+def up_online(ctx: ProjectContext, *, no_cache: bool = False) -> None:
+    """Online compose up (compose_online only). Formerly ``dev-up``."""
     from offline_docker.ensure_base import ensure_base_online
 
     compose = ctx.config.compose_online
-    print("=== dev-up ===")
+    print("=== up --online ===")
     print(f"Project: {ctx.root}")
     print(f"Compose: {compose}")
     print()
@@ -139,7 +140,11 @@ def dev_up(ctx: ProjectContext, *, no_cache: bool = False) -> None:
         env={"DOCKER_BUILDKIT": "1"},
     )
     print()
-    print("=== dev-up: контейнеры подняты ===")
+    print("=== up --online: контейнеры подняты ===")
+
+
+# Back-compat alias
+dev_up = up_online
 
 
 def _ensure_traefik_network() -> None:
@@ -163,7 +168,7 @@ def up_offline(
     compose_args = ctx.config.compose_up_file_args(lab=lab)
     env_file_args = ctx.config.compose_env_file_args()
 
-    print("=== up-offline ===")
+    print("=== up ===" if not lab else "=== up --lab ===")
     print(f"Project: {ctx.root}")
     print(f"Offline cache: {ctx.offline_cache}")
     print(f"Compose:       {' '.join(compose_args)}")
@@ -192,4 +197,39 @@ def up_offline(
 
     docker_cmd.run(cmd, cwd=ctx.root, env={"DOCKER_BUILDKIT": "1"})
     print()
-    print("=== up-offline: контейнеры подняты ===")
+    print("=== up: контейнеры подняты ===")
+
+
+def down_stack(
+    ctx: ProjectContext,
+    *,
+    lab: bool = False,
+    online: bool = False,
+    services: list[str] | None = None,
+) -> None:
+    """Compose down for the same stack selection as ``up`` / ``up --lab`` / ``up --online``."""
+    if lab and online:
+        raise ValueError("--lab and --online are mutually exclusive")
+
+    env_file_args = ctx.config.compose_env_file_args()
+    if online:
+        compose = ctx.config.compose_online
+        compose_args = ["-f", compose]
+        label = "down --online"
+    else:
+        compose_args = ctx.config.compose_up_file_args(lab=lab)
+        label = "down --lab" if lab else "down"
+
+    print(f"=== {label} ===")
+    print(f"Project: {ctx.root}")
+    print(f"Compose: {' '.join(compose_args)}")
+    if services:
+        print(f"Services: {' '.join(services)}")
+    print()
+
+    cmd = ["docker", "compose", *env_file_args, *compose_args, "down"]
+    if services:
+        cmd.extend(services)
+    docker_cmd.run(cmd, cwd=ctx.root, env={"DOCKER_BUILDKIT": "1"})
+    print()
+    print(f"=== {label}: готово ===")
