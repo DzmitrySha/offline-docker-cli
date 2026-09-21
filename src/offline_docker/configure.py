@@ -6,7 +6,12 @@ import argparse
 import sys
 from typing import Any
 
-from offline_docker.user_config import local_only_dict, save_user_sources, user_sources_path
+from offline_docker.user_config import (
+    local_only_dict,
+    online_fill_dict,
+    save_user_sources,
+    user_sources_path,
+)
 
 # Helpful placeholders for operators (shown in prompts; Enter keeps empty).
 _HINT_PROGET_URL = "https://proget.vitebsk.energo.net"
@@ -124,9 +129,23 @@ def _build_sources_dict(
 
 
 def run_configure(args: argparse.Namespace) -> None:
+    if getattr(args, "local_only", False) and getattr(args, "with_upstream", False):
+        print("ERROR: укажите либо --local-only, либо --with-upstream", file=sys.stderr)
+        raise SystemExit(2)
+
     if getattr(args, "local_only", False):
         path = save_user_sources(local_only_dict())
         print(f"Сохранено (local-only): {path}")
+        print("Режим для офлайн/корп VM: download-* без явного upstream")
+        print("  (CLI всё ещё может временно добавить PyPI как fallback — см. WARN).")
+        print("Для заполнения кэша с интернета: offline-docker configure --with-upstream")
+        return
+
+    if getattr(args, "with_upstream", False):
+        path = save_user_sources(online_fill_dict())
+        print(f"Сохранено (local + upstream): {path}")
+        print("Resolve order: local, upstream")
+        print("PyPI: https://pypi.org/simple  |  npm: https://registry.npmjs.org/")
         return
 
     interactive = sys.stdin.isatty() and not getattr(args, "non_interactive", False)
@@ -193,9 +212,11 @@ def run_configure(args: argparse.Namespace) -> None:
         order = [p.strip() for p in order_raw.split(",") if p.strip()]
 
     if not proget_url and not nexus_url:
-        data = local_only_dict()
+        # Без корп. реестров на машине с сетью удобнее local+upstream, чем «тихий» local-only.
+        data = online_fill_dict()
         path = save_user_sources(data)
-        print(f"URL не заданы — сохранён режим только offline-cache: {path}")
+        print(f"URL не заданы — сохранён local + upstream (PyPI/npmjs): {path}")
+        print("Только offline-cache: offline-docker configure --local-only")
         return
 
     data = _build_sources_dict(
@@ -221,19 +242,30 @@ def add_configure_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser
         help="Настроить ProGet/Nexus (user-level sources.json)",
         description=(
             "Интерактивная или флаги-настройка источников пакетов. "
-            "Пустые URL = только локальный offline-cache. "
+            "--with-upstream = local + PyPI/npmjs; --local-only = только offline-cache; "
+            "пустые ProGet/Nexus URL в интерактиве = --with-upstream. "
             "Не требует --project."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "примеры:\n"
             "  offline-docker configure\n"
-            "  offline-docker configure --local-only\n"
+            "  offline-docker configure --with-upstream   # fill cache с PyPI/npmjs\n"
+            "  offline-docker configure --local-only      # только offline-cache\n"
             "  offline-docker configure --proget-url https://proget.example.com \\\n"
             "      --nexus-url http://nexus.example.com:8081\n"
         ),
     )
-    p.add_argument("--local-only", action="store_true", help="Только offline-cache")
+    p.add_argument(
+        "--local-only",
+        action="store_true",
+        help="Только offline-cache (офлайн/корп VM)",
+    )
+    p.add_argument(
+        "--with-upstream",
+        action="store_true",
+        help="local + PyPI/npmjs upstream (машина с сетью для download-*)",
+    )
     p.add_argument("--non-interactive", action="store_true", help="Без prompt (только флаги)")
     p.add_argument("--proget-url", default=None, help="ProGet base URL")
     p.add_argument("--proget-pypi", default=None, help=f"ProGet PyPI feed (hint: {_HINT_PROGET_PYPI})")
