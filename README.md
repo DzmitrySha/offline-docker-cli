@@ -203,7 +203,9 @@ offline-docker scan-trivy-offline -p . backend myapp-backend:cuda12
 
 ```powershell
 offline-docker configure
-# или без prompt:
+# заполнение кэша с интернета (local + PyPI/npmjs):
+offline-docker configure --with-upstream
+# только offline-cache (корп/офлайн VM):
 offline-docker configure --local-only
 offline-docker configure --proget-url https://proget.example.com --nexus-url http://nexus.example.com:8081
 ```
@@ -216,7 +218,15 @@ offline-docker configure --proget-url https://proget.example.com --nexus-url htt
 
 Приоритет: **project `.offline-docker.json` → секция `cache`** перекрывает user-config; иначе user; иначе local-only.
 
-Порядок поиска задаётся `resolve.order` (например `local,proget,nexus`). `download-wheels` / `download-npm-cache` ходят по цепочке index URL и дописывают артефакты в локальную папку (`fill_local`).
+| Режим | Когда |
+|-------|--------|
+| `--with-upstream` | Машина с сетью: `download-*` тянет с PyPI/npmjs в `offline-cache/` |
+| `--local-only` | Офлайн/корп VM: сборка только из уже скачанного кэша |
+| ProGet/Nexus | Корп. зеркала; порядок в `resolve.order` |
+
+Порядок поиска задаётся `resolve.order` (например `local,upstream` или `local,proget,nexus`). `download-wheels` / `download-npm-cache` ходят по цепочке index URL и дописывают артефакты в локальную папку (`fill_local`).
+
+Если в `sources.json` стоит **local-only**, `download-wheels` всё равно временно добавляет PyPI/PyTorch (с WARN) и перед скачиванием удаляет **устаревшие** wheels, чья версия не совпадает с pin в lock/requirements (типичный случай `protobuf==7.x` при старом `6.x` в кэше).
 
 Auth (опционально, через env, не в JSON): `PROGET_API_KEY`, `NEXUS_AUTH` (`user:pass` или Bearer).
 
@@ -259,6 +269,13 @@ offline-docker-cli/
 - Docker (CLI на PATH)
 
 ## Changelog
+
+### 1.4.2
+
+- `configure --with-upstream`: явный режим local + PyPI/npmjs для заполнения кэша с сети.
+- Пустые ProGet/Nexus URL больше не пишут silent local-only — по умолчанию `local,upstream`.
+- `download-wheels`: WARN при local-only fallback; prune устаревших wheels по pin; retry без `--find-links`; `--retries`/`--timeout`.
+- `download-npm-cache`: WARN, если registry взят по умолчанию при local-only.
 
 ### 1.4.1
 
