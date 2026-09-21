@@ -70,7 +70,7 @@ def download_npm_cache(ctx: ProjectContext) -> None:
             "https://registry.npmjs.org/"
         )
         print(
-            "      Явный режим: offline-docker configure --with-upstream"
+            "      Явный режим: offdock configure --with-upstream"
         )
 
     docker_cmd.run(

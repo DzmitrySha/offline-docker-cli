@@ -278,7 +278,7 @@ def download_wheels(ctx: ProjectContext) -> None:
         )
         print(
             "      Для явного режима заполнения кэша: "
-            "offline-docker configure --with-upstream"
+            "offdock configure --with-upstream"
         )
     print()
 

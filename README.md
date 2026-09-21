@@ -1,8 +1,10 @@
 # offline-docker-cli
 
-Универсальная Python CLI для подготовки **offline-cache**, валидации, офлайн-сборки Docker-образов и **Trivy**-сканирования.
+Универсальная Python CLI (**`offdock`**) для подготовки **offline-cache**, валидации, офлайн-сборки Docker-образов и **Trivy**-сканирования.
 
 CLI **не содержит** конфигов конкретных проектов — всё берётся из целевого репозитория (`--project`).
+
+**2.0.0 (breaking):** бинарь `offdock`, короткие команды (`cache`, `build`, `up`, `down`, `scan`). Старый entrypoint `offline-docker` и прежние имена команд — deprecated aliases.
 
 ## Установка
 
@@ -19,7 +21,7 @@ cd D:\opo\NeuroAI\offline-docker-cli
 pip install -e .
 pip install -e ".[yaml]"   # опционально: .offline-docker.yaml
 pip install -e ".[tui]"    # опционально: Textual TUI
-offline-docker configure   # ProGet/Nexus URL (Enter = только offline-cache)
+offdock configure          # ProGet/Nexus URL (Enter = только offline-cache)
 ```
 
 ### Опциональный TUI
@@ -31,7 +33,7 @@ offline-docker configure   # ProGet/Nexus URL (Enter = только offline-cach
 pip install D:\opo\NeuroAI\offline-docker-cli\[tui]
 
 # Запуск
-offline-docker tui -p .
+offdock tui -p .
 ```
 
 **Важно:** `pip install -e ".[tui]"` (editable) привязывает пакет к папке исходников — если папку переместить/удалить, CLI сломается. Для использования рекомендуется **обычная установка** (без `-e`).  
@@ -43,11 +45,11 @@ offline-docker tui -p .
 
 ```powershell
 cd D:\opo\NeuroAI\prognoz-np
-offline-docker init -p .          # → .offline-docker.json (или .generated.json)
-offline-docker discover -p .
-offline-docker download-offline-cache -p .
-offline-docker build-offline -p .
-offline-docker up-offline -p .
+offdock init -p .          # → .offline-docker.json (или .generated.json)
+offdock discover -p .
+offdock cache -p .
+offdock build -p .
+offdock up -p .
 ```
 
 ### `init` — черновик конфига
@@ -63,7 +65,7 @@ offline-docker up-offline -p .
 **Не** генерируются сами offline-Dockerfile / compose — только пути и список доработок.
 
 ```powershell
-offline-docker init -p . --dry-run   # только отчёт
+offdock init -p . --dry-run   # только отчёт
 ```
 
 ## Команды
@@ -71,23 +73,17 @@ offline-docker init -p . --dry-run   # только отчёт
 | Команда | Описание |
 |---------|----------|
 | `configure` | User-level ProGet/Nexus (или local-only) |
-| `tui` | Интерактивный Textual TUI (нужен `pip install -e ".[tui]"`) |
+| `tui` | Интерактивный Textual TUI (нужен `pip install …[tui]`) |
 | `init` | Рекурсивный scan → черновик `.offline-docker.json` (+ gaps) |
 | `discover` | Compose, Python/npm lock, Dockerfile, APT-пакеты, sources, Missing |
-| `download-debs` | Ubuntu `.deb` (+ extra repos) |
-| `download-wheels` | Python wheels |
-| `download-npm-cache` | npm `_cacache` |
-| `download-yarn-cache` | Yarn cache, если в `*Dockerfile.offline` есть `source=yarn` |
-| `download-docker-images` | `docker pull` + `save` |
-| `download-trivy-db` | Vulnerability DB Trivy |
-| `download-offline-cache` | Все download-* подряд |
-| `validate-offline-cache` | Проверка полноты кэша |
-| `load-docker-images` | `docker load` из `offline-cache/docker/` |
-| `build-base-offline` | Базовый образ |
-| `build-offline [base backend frontend]` | Офлайн-сборка |
-| `up-offline [--lab] [--no-build] [--no-deps] [services]` | Compose up offline-стека |
-| `dev-up` | Онлайн: base + compose build + up |
-| `scan-trivy-offline <backend\|frontend> [image]` | Trivy scan |
+| `cache` | Полный download offline-cache |
+| `cache wheels\|debs\|npm\|yarn\|images\|trivy` | Частичный download |
+| `cache check` | Проверка полноты кэша |
+| `cache load` | `docker load` из `offline-cache/docker/` |
+| `build [base backend frontend]` | Офлайн-сборка |
+| `up [--lab\|--online] […]` | Compose up (offline / lab / online) |
+| `down [--lab\|--online] [services]` | Compose down того же стека |
+| `scan [trivy] <backend\|frontend> [image]` | Скан образа (default: trivy) |
 
 ### Общие флаги
 
@@ -97,9 +93,9 @@ offline-docker init -p . --dry-run   # только отчёт
 Справка и примеры — в `--help` (общий и по команде):
 
 ```powershell
-offline-docker --help
-offline-docker scan-trivy-offline --help
-offline-docker up-offline --help
+offdock --help
+offdock scan --help
+offdock up --help
 ```
 
 ## Примеры команд
@@ -108,32 +104,41 @@ offline-docker up-offline --help
 
 ```powershell
 # Полный цикл подготовки кэша (на машине с интернетом)
-offline-docker download-offline-cache -p D:\opo\NeuroAI\prognoz-np
+offdock cache -p D:\opo\NeuroAI\prognoz-np
 
 # На офлайн-машине: загрузить образы и собрать
-offline-docker load-docker-images -p .
-offline-docker build-offline -p .
-offline-docker validate-offline-cache -p .
+offdock cache load -p .
+offdock build -p .
+offdock cache check -p .
 
 # Собрать только backend (без base/frontend)
-offline-docker build-offline -p . backend
+offdock build -p . backend
 ```
 
-### `up-offline` и режим `--lab`
+### `up` / `down` и режимы `--lab` / `--online`
 
 Обычный offline-стек (merge-файлы из `compose_up_offline` в конфиге):
 
 ```powershell
-offline-docker up-offline -p .
+offdock up -p .
+offdock down -p .
 ```
 
 Home lab — дополнительно подключается `docker-compose.lab.yml`:
 
 ```powershell
-offline-docker up-offline -p . --lab
+offdock up -p . --lab
+offdock down -p . --lab
 ```
 
-Что нужно в **целевом проекте**:
+Online (бывший `dev-up`) — только `compose_online`:
+
+```powershell
+offdock up -p . --online
+offdock down -p . --online
+```
+
+Что нужно в **целевом проекте** для `--lab`:
 
 1. Файл `docker-compose.lab.yml` в корне репозитория (override для домашней среды).
 2. В `.offline-docker.json` — секция `compose_up_offline_lab` со списком compose-файлов (см. `examples/offline-docker.json.example`). Если секция не задана, CLI сам добавит `docker-compose.lab.yml` к списку из `compose_up_offline`.
@@ -144,36 +149,39 @@ offline-docker up-offline -p . --lab
 
 ```powershell
 # Не пересобирать образы (уже собраны)
-offline-docker up-offline -p . --no-build
+offdock up -p . --no-build
 
 # Поднять только backend, без пересоздания зависимостей
-offline-docker up-offline -p . --no-deps backend
+offdock up -p . --no-deps backend
 
 # Lab + только frontend
-offline-docker up-offline -p . --lab frontend
+offdock up -p . --lab frontend
+
+# Остановить отдельные сервисы
+offdock down -p . backend frontend
 ```
 
-### `scan-trivy-offline`
+### `scan`
 
-**Обязательный позиционный аргумент** `target`: `backend` или `frontend`.  
-Опционально — свой тег образа вместо `images.backend` / `images.frontend` из конфига.
+**Обязательный** target: `backend` или `frontend`.  
+Опционально — сканер (`trivy`, default) и тег образа.
 
 ```powershell
 # Скан backend-образа из конфига (images.backend)
-offline-docker scan-trivy-offline -p . backend
+offdock scan backend
 
-# Скан frontend-образа
-offline-docker scan-trivy-offline -p . frontend
+# Явно указать сканер
+offdock scan trivy frontend
 
-# Явный тег образа (если собрали под другим именем)
-offline-docker scan-trivy-offline -p . backend myapp-backend:cuda12
+# Явный тег образа
+offdock scan trivy backend myapp-backend:cuda12
 ```
 
 Перед сканом:
 
-1. Образ должен существовать локально (`docker images`) — обычно после `build-offline`.
-2. БД Trivy в `offline-cache/trivy/` — `download-trivy-db` или `download-offline-cache` (на машине с интернетом); на офлайн-машине CLI попытается использовать кэш и предупредит, если БД устарела.
-3. Образ сканера `aquasec/trivy:latest` — в `docker_images` конфига, загружается через `load-docker-images`.
+1. Образ должен существовать локально (`docker images`) — обычно после `build`.
+2. БД Trivy в `offline-cache/trivy/` — `cache trivy` или `cache` (на машине с интернетом); на офлайн-машине CLI попытается использовать кэш и предупредит, если БД устарела.
+3. Образ сканера `aquasec/trivy:latest` — в `docker_images` конфига, загружается через `cache load`.
 
 Параметры сканирования (`severity`, `scanners`, `db_max_age_days`) — в секции `trivy` конфига:
 
@@ -202,12 +210,12 @@ offline-docker scan-trivy-offline -p . backend myapp-backend:cuda12
 После установки настройте корпоративные реестры (один раз на машину):
 
 ```powershell
-offline-docker configure
+offdock configure
 # заполнение кэша с интернета (local + PyPI/npmjs):
-offline-docker configure --with-upstream
+offdock configure --with-upstream
 # только offline-cache (корп/офлайн VM):
-offline-docker configure --local-only
-offline-docker configure --proget-url https://proget.example.com --nexus-url http://nexus.example.com:8081
+offdock configure --local-only
+offdock configure --proget-url https://proget.example.com --nexus-url http://nexus.example.com:8081
 ```
 
 Конфиг пишется в user-level файл (не в example проекта):
@@ -220,13 +228,13 @@ offline-docker configure --proget-url https://proget.example.com --nexus-url htt
 
 | Режим | Когда |
 |-------|--------|
-| `--with-upstream` | Машина с сетью: `download-*` тянет с PyPI/npmjs в `offline-cache/` |
+| `--with-upstream` | Машина с сетью: `cache` / `cache wheels` тянет с PyPI/npmjs в `offline-cache/` |
 | `--local-only` | Офлайн/корп VM: сборка только из уже скачанного кэша |
 | ProGet/Nexus | Корп. зеркала; порядок в `resolve.order` |
 
-Порядок поиска задаётся `resolve.order` (например `local,upstream` или `local,proget,nexus`). `download-wheels` / `download-npm-cache` ходят по цепочке index URL и дописывают артефакты в локальную папку (`fill_local`).
+Порядок поиска задаётся `resolve.order` (например `local,upstream` или `local,proget,nexus`). `cache wheels` / `cache npm` ходят по цепочке index URL и дописывают артефакты в локальную папку (`fill_local`).
 
-Если в `sources.json` стоит **local-only**, `download-wheels` всё равно временно добавляет PyPI/PyTorch (с WARN) и перед скачиванием удаляет **устаревшие** wheels, чья версия не совпадает с pin в lock/requirements (типичный случай `protobuf==7.x` при старом `6.x` в кэше).
+Если в `sources.json` стоит **local-only**, `cache wheels` всё равно временно добавляет PyPI/PyTorch (с WARN) и перед скачиванием удаляет **устаревшие** wheels, чья версия не совпадает с pin в lock/requirements (типичный случай `protobuf==7.x` при старом `6.x` в кэше).
 
 Auth (опционально, через env, не в JSON): `PROGET_API_KEY`, `NEXUS_AUTH` (`user:pass` или Bearer).
 
@@ -269,6 +277,14 @@ offline-docker-cli/
 - Docker (CLI на PATH)
 
 ## Changelog
+
+### 2.0.0
+
+- Бинарь **`offdock`** (alias `offline-docker` deprecated).
+- Короткие команды: `cache` (+ подкоманды), `build`, `up`, `down`, `scan [trivy]`.
+- `up --online` вместо `dev-up`; `up --lab` без переименования смысла.
+- Новая команда `down` с теми же режимами и поддержкой services.
+- Старые имена (`download-*`, `build-offline`, `up-offline`, …) — deprecated aliases.
 
 ### 1.4.2
 

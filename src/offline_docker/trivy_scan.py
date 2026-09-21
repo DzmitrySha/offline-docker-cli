@@ -29,7 +29,7 @@ def scan_trivy_offline(
         raise SystemExit(f"ERROR: образ {image} не найден локально")
 
     if trivy_db_stale(ctx):
-        print("БД Trivy устарела или отсутствует — download-trivy-db")
+        print("БД Trivy устарела или отсутствует — offdock cache trivy")
         try:
             download_trivy_db(ctx)
         except SystemExit:
@@ -37,7 +37,7 @@ def scan_trivy_offline(
         except Exception as exc:
             raise SystemExit(
                 "ERROR: не удалось обновить БД Trivy. "
-                "Выполните download-trivy-db на машине с интернетом."
+                "Выполните offdock cache trivy на машине с интернетом."
             ) from exc
 
     ensure_trivy_image(ctx)

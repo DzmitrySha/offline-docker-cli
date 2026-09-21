@@ -279,7 +279,7 @@ def pip_index_chain_for_download(
     Returns (chain, used_local_only_fallback).
     When sources.json is local-only, chain is empty — we temporarily use
     project/env PyPI + PyTorch indexes so download-* can fill the cache.
-    Prefer `offline-docker configure --with-upstream` to make that explicit.
+    Prefer `offdock configure --with-upstream` to make that explicit.
     """
     chain = list(resolver.pypi_index_chain())
     used_fallback = False

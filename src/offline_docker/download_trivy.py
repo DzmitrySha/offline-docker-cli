@@ -47,7 +47,7 @@ def ensure_trivy_image(ctx: ProjectContext) -> None:
     load_docker_images(ctx)
     if not docker_cmd.image_exists(image):
         raise SystemExit(
-            f"ERROR: образ {image} недоступен. Выполните download-docker-images"
+            f"ERROR: образ {image} недоступен. Выполните offdock cache images"
         )
 
 

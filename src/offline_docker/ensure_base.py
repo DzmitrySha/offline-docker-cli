@@ -28,7 +28,7 @@ def require_base_offline(ctx: ProjectContext, image: str | None = None) -> None:
     if not docker_cmd.image_exists(image):
         raise SystemExit(
             f"Ошибка: образ {image} не найден. "
-            "Сначала: offline-docker build-base-offline"
+            "Сначала: offdock build base"
         )
 
 

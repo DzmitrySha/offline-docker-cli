@@ -136,9 +136,9 @@ def run_configure(args: argparse.Namespace) -> None:
     if getattr(args, "local_only", False):
         path = save_user_sources(local_only_dict())
         print(f"Сохранено (local-only): {path}")
-        print("Режим для офлайн/корп VM: download-* без явного upstream")
+        print("Режим для офлайн/корп VM: cache без явного upstream")
         print("  (CLI всё ещё может временно добавить PyPI как fallback — см. WARN).")
-        print("Для заполнения кэша с интернета: offline-docker configure --with-upstream")
+        print("Для заполнения кэша с интернета: offdock configure --with-upstream")
         return
 
     if getattr(args, "with_upstream", False):
@@ -216,7 +216,7 @@ def run_configure(args: argparse.Namespace) -> None:
         data = online_fill_dict()
         path = save_user_sources(data)
         print(f"URL не заданы — сохранён local + upstream (PyPI/npmjs): {path}")
-        print("Только offline-cache: offline-docker configure --local-only")
+        print("Только offline-cache: offdock configure --local-only")
         return
 
     data = _build_sources_dict(
@@ -249,10 +249,10 @@ def add_configure_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "примеры:\n"
-            "  offline-docker configure\n"
-            "  offline-docker configure --with-upstream   # fill cache с PyPI/npmjs\n"
-            "  offline-docker configure --local-only      # только offline-cache\n"
-            "  offline-docker configure --proget-url https://proget.example.com \\\n"
+            "  offdock configure\n"
+            "  offdock configure --with-upstream   # fill cache с PyPI/npmjs\n"
+            "  offdock configure --local-only      # только offline-cache\n"
+            "  offdock configure --proget-url https://proget.example.com \\\n"
             "      --nexus-url http://nexus.example.com:8081\n"
         ),
     )
@@ -264,7 +264,7 @@ def add_configure_parser(sub: argparse._SubParsersAction[argparse.ArgumentParser
     p.add_argument(
         "--with-upstream",
         action="store_true",
-        help="local + PyPI/npmjs upstream (машина с сетью для download-*)",
+        help="local + PyPI/npmjs upstream (машина с сетью для cache)",
     )
     p.add_argument("--non-interactive", action="store_true", help="Без prompt (только флаги)")
     p.add_argument("--proget-url", default=None, help="ProGet base URL")

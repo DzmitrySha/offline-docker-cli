@@ -21,7 +21,7 @@ def load_docker_images(ctx: ProjectContext) -> None:
     tars = sorted(ctx.docker_cache_dir.glob("*.tar"))
     if not tars:
         print(
-            f"WARN: нет .tar в {ctx.docker_cache_dir} - выполните download-docker-images",
+            f"WARN: нет .tar в {ctx.docker_cache_dir} - выполните offdock cache images",
             flush=True,
         )
         return

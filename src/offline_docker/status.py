@@ -98,7 +98,7 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
         if (ctx.wheels_dir / ".mount-check").is_file():
             add("ok", "wheels/.mount-check")
         else:
-            fail("wheels/.mount-check отсутствует - выполните download-wheels", label="wheels")
+            fail("wheels/.mount-check отсутствует - выполните offdock cache wheels", label="wheels")
 
         if ctx.wheels_hash_file.is_file():
             try:
@@ -108,18 +108,18 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
                     lock_names = ", ".join(cfg.python_lock_files)
                     add("ok", "wheels cache", f"соответствует {lock_names}")
                 else:
-                    fail("Python lockfile изменился - выполните download-wheels", label="wheels")
+                    fail("Python lockfile изменился - выполните offdock cache wheels", label="wheels")
             except RuntimeError:
                 pass
         else:
-            fail("нет wheels/.deps.sha256 - выполните download-wheels", label="wheels")
+            fail("нет wheels/.deps.sha256 - выполните offdock cache wheels", label="wheels")
 
         check_min_files(ctx.wheels_dir, "*.whl", 1, "Python wheels")
         for wp in cfg.critical_wheels:
             if list(ctx.wheels_dir.glob(wp.pattern)):
                 add("ok", f"wheel {wp.label}")
             else:
-                fail(f"нет {wp.pattern} - выполните download-wheels", label=f"wheel {wp.label}")
+                fail(f"нет {wp.pattern} - выполните offdock cache wheels", label=f"wheel {wp.label}")
     else:
         add("skip", "Python wheels", "нет lockfile")
 
@@ -131,13 +131,13 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
         if gpg.is_file() and lst.is_file():
             add("ok", f"apt-meta/{repo.name}")
         else:
-            fail(f"нет apt-meta для {repo.name} - выполните download-debs", label=f"apt-meta/{repo.name}")
+            fail(f"нет apt-meta для {repo.name} - выполните offdock cache debs", label=f"apt-meta/{repo.name}")
 
     if has_frontend:
         if (ctx.npm_cache_dir / "_cacache").is_dir():
             add("ok", "npm/_cacache")
         else:
-            fail("нет npm/_cacache - выполните download-npm-cache", label="npm")
+            fail("нет npm/_cacache - выполните offdock cache npm", label="npm")
 
         npm_hash = ctx.npm_cache_dir / ".package-lock.sha256"
         lock = cfg.frontend_lock_path()
@@ -148,9 +148,9 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
             if current == stored:
                 add("ok", "npm cache", f"соответствует {cfg.frontend_dir}/{cfg.frontend_lock}")
             else:
-                fail("package-lock.json изменился - выполните download-npm-cache", label="npm")
+                fail("package-lock.json изменился - выполните offdock cache npm", label="npm")
         else:
-            fail("нет npm/.package-lock.sha256 - выполните download-npm-cache", label="npm")
+            fail("нет npm/.package-lock.sha256 - выполните offdock cache npm", label="npm")
     else:
         add("skip", "npm cache", "нет frontend lockfile")
 
@@ -165,7 +165,7 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
                 add("ok", f"{spec.archive_subdir} archive", archive_tar.name)
             else:
                 fail(
-                    f"нет {archive_tar.name} - выполните download-yarn-cache",
+                    f"нет {archive_tar.name} - выполните offdock cache yarn",
                     label=spec.archive_subdir,
                 )
 
@@ -174,7 +174,7 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
                 add("ok", f"{spec.cache_subdir}/.mount-check")
             else:
                 fail(
-                    f"{spec.cache_subdir}/.mount-check отсутствует - выполните download-yarn-cache",
+                    f"{spec.cache_subdir}/.mount-check отсутствует - выполните offdock cache yarn",
                     label=spec.cache_subdir,
                 )
             if yarn_hash.is_file() and archive_tar.is_file():
@@ -187,10 +187,10 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
                         f"соответствует {archive_tar.name}",
                     )
                 else:
-                    fail("archive изменился - выполните download-yarn-cache", label=spec.cache_subdir)
+                    fail("archive изменился - выполните offdock cache yarn", label=spec.cache_subdir)
             else:
                 fail(
-                    f"нет {spec.cache_subdir}/.{spec.archive_subdir}.sha256 - выполните download-yarn-cache",
+                    f"нет {spec.cache_subdir}/.{spec.archive_subdir}.sha256 - выполните offdock cache yarn",
                     label=spec.cache_subdir,
                 )
             if cache_dir.is_dir():
@@ -204,7 +204,7 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
                     cache_entries.append(v6_dir)
                 if not cache_entries:
                     fail(
-                        f"{spec.cache_subdir}/ пуст (нет пакетов) - выполните download-yarn-cache",
+                        f"{spec.cache_subdir}/ пуст (нет пакетов) - выполните offdock cache yarn",
                         label=spec.cache_subdir,
                     )
                 else:
@@ -216,6 +216,6 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
     if tar_count >= 1:
         add("ok", "docker tars", f"{tar_count} файлов")
     else:
-        add("warn", "docker tars", "нет docker/*.tar - выполните download-docker-images")
+        add("warn", "docker tars", "нет docker/*.tar - выполните offdock cache images")
 
     return report
