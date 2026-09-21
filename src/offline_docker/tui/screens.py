@@ -27,6 +27,16 @@ from offline_docker.discover import format_discovery_report
 from offline_docker.status import CacheStatusReport, collect_cache_status
 from offline_docker.tui.runner import run_action_captured
 
+
+class CommandListView(ListView):
+    """Click highlights an item; Enter posts Selected (run)."""
+
+    def _on_list_item__child_clicked(self, event: ListItem._ChildClicked) -> None:
+        event.stop()
+        self.focus()
+        self.index = self._nodes.index(event.item)
+
+
 # User-facing command list (order matters).
 _COMMANDS: list[tuple[str, str]] = [
     ("discover", "Discover dependencies"),
@@ -148,7 +158,7 @@ class HomeScreen(Screen[None]):
                 yield Checkbox("no-build", id="flag-no-build")
                 yield Checkbox("no-deps", id="flag-no-deps")
             yield Label("Commands (Enter / Run):")
-            yield ListView(id="commands", *self._command_items())
+            yield CommandListView(id="commands", *self._command_items())
             with Horizontal(id="actions-row"):
                 yield Button("Run", id="btn-run", variant="success")
                 yield Button("Discover report", id="btn-discover")
