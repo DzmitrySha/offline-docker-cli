@@ -4,14 +4,15 @@
 
 CLI **не содержит** конфигов конкретных проектов — всё берётся из целевого репозитория (`--project`).
 
-**2.0.0 (breaking):** бинарь `offdock`, короткие команды (`cache`, `build`, `up`, `down`, `scan`). Старый entrypoint `offline-docker` и прежние имена команд — deprecated aliases.
+**2.1.0:** удалены deprecated aliases старых команд и entrypoint `offline-docker` (только `offdock`).
+**2.0.0 (breaking):** бинарь `offdock`, короткие команды (`cache`, `build`, `up`, `down`, `scan`).
 
 ## Установка
 
 ### Вариант A — без pip (рекомендуется в corp-сети)
 
 ```powershell
-D:\opo\NeuroAI\offline-docker-cli\offline-docker.cmd discover -p D:\opo\NeuroAI\prognoz-np
+D:\opo\NeuroAI\offline-docker-cli\offdock.cmd discover -p D:\opo\NeuroAI\prognoz-np
 ```
 
 ### Вариант B — pip (если PyPI доступен)
@@ -48,6 +49,7 @@ cd D:\opo\NeuroAI\prognoz-np
 offdock init -p .          # → .offline-docker.json (или .generated.json)
 offdock discover -p .
 offdock cache -p .
+offdock cache check -p .   # проверка полноты offline-cache
 offdock build -p .
 offdock up -p .
 ```
@@ -131,7 +133,7 @@ offdock up -p . --lab
 offdock down -p . --lab
 ```
 
-Online (бывший `dev-up`) — только `compose_online`:
+Online — только `compose_online`:
 
 ```powershell
 offdock up -p . --online
@@ -278,13 +280,17 @@ offline-docker-cli/
 
 ## Changelog
 
+### 2.1.0
+
+- Удалены deprecated aliases старых subcommands (`download-*`, `build-offline`, `up-offline`, `dev-up`, `scan-trivy-offline`, …).
+- Удалён entrypoint `offline-docker` из `pyproject.toml` — только `offdock`.
+
 ### 2.0.0
 
-- Бинарь **`offdock`** (alias `offline-docker` deprecated).
+- Бинарь **`offdock`**.
 - Короткие команды: `cache` (+ подкоманды), `build`, `up`, `down`, `scan [trivy]`.
 - `up --online` вместо `dev-up`; `up --lab` без переименования смысла.
 - Новая команда `down` с теми же режимами и поддержкой services.
-- Старые имена (`download-*`, `build-offline`, `up-offline`, …) — deprecated aliases.
 
 ### 1.4.2
 

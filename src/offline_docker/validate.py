@@ -30,7 +30,7 @@ def _format_item_line(level: str, label: str, detail: str) -> str:
 def validate_offline_cache(ctx: ProjectContext) -> None:
     report = collect_cache_status(ctx)
 
-    print("=== validate-offline-cache ===")
+    print("=== cache check ===")
     print(f"Project:       {report.project}")
     print(f"OFFLINE_CACHE: {report.offline_cache}")
     print(f"Resolve:       {' -> '.join(report.resolve_order)}")
@@ -50,4 +50,4 @@ def validate_offline_cache(ctx: ProjectContext) -> None:
     if report.error_count:
         print(f"=== FAILED: {report.error_count} ошибок ===", flush=True)
         raise SystemExit(1)
-    print("=== validate-offline-cache: OK ===")
+    print("=== cache check: OK ===")
