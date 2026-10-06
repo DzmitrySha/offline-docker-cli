@@ -1,5 +1,7 @@
 # offline-docker-cli
 
+**Для агентов:** [`AGENTS.md`](AGENTS.md) · площадка: `d:\opo\NeuroAI\all_NeuroAI\docs\PLATFORM.md`.
+
 Универсальная Python CLI (**`offdock`**) для подготовки **offline-cache**, валидации, офлайн-сборки Docker-образов и **Trivy**-сканирования.
 
 CLI **не содержит** конфигов конкретных проектов — всё берётся из целевого репозитория (`--project`).
@@ -12,7 +14,7 @@ CLI **не содержит** конфигов конкретных проект
 ### Вариант A — без pip (рекомендуется в corp-сети)
 
 ```powershell
-D:\opo\NeuroAI\offline-docker-cli\offdock.cmd discover -p D:\opo\NeuroAI\prognoz-np
+D:\opo\NeuroAI\offline-docker-cli\offdock.cmd discover -p D:\opo\NeuroAI\prognoz_np
 ```
 
 ### Вариант B — pip (если PyPI доступен)
