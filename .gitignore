@@ -12,3 +12,14 @@ venv/
 .ruff_cache/
 .idea/
 .vscode/
+
+# Archives
+*.rar
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+*.bz2
+*.xz
