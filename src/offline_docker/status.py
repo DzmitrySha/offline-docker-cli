@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from offline_docker.config import dockerfile_uses_vendor_mount
 from offline_docker.context import ProjectContext
 from offline_docker.oc_discovery import archive_tar_path, discover_yarn_cache_specs
 from offline_docker.utils import file_sha256
@@ -217,5 +218,30 @@ def collect_cache_status(ctx: ProjectContext) -> CacheStatusReport:
         add("ok", "docker tars", f"{tar_count} файлов")
     else:
         add("warn", "docker tars", "нет docker/*.tar - выполните offdock cache images")
+
+    # vendor: explicit critical_vendor and/or source=vendor in Dockerfile.offline
+    vendor_hint = "выполните offdock cache (hooks.after_cache) или cache-vendor"
+    if cfg.critical_vendor:
+        for vp in cfg.critical_vendor:
+            pattern = vp.path.replace("\\", "/")
+            if any(ch in pattern for ch in "*?["):
+                matches = list(ctx.offline_cache.glob(pattern))
+            else:
+                candidate = ctx.offline_cache / pattern
+                matches = [candidate] if candidate.is_file() or candidate.is_dir() else []
+            # files only for globs; dirs ok for exact paths like vendor/
+            ok_matches = [m for m in matches if m.is_file() or (m.is_dir() and any(m.iterdir()))]
+            if ok_matches:
+                add("ok", f"vendor {vp.label}", ok_matches[0].name if ok_matches[0].is_file() else str(ok_matches[0]))
+            else:
+                fail(f"нет {pattern} - {vendor_hint}", label=f"vendor {vp.label}")
+    elif dockerfile_uses_vendor_mount(cfg):
+        vendor_dir = ctx.offline_cache / "vendor"
+        if vendor_dir.is_dir() and any(vendor_dir.iterdir()):
+            add("ok", "vendor", str(vendor_dir))
+        else:
+            fail(f"нет offline-cache/vendor - {vendor_hint}", label="vendor")
+    else:
+        add("skip", "vendor", "нет source=vendor / critical_vendor")
 
     return report
