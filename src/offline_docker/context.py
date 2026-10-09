@@ -95,3 +95,17 @@ class ProjectContext:
 
         os.environ.setdefault("DOCKER_BUILDKIT", "1")
         os.environ.setdefault("OFFLINE_CACHE", str(self.offline_cache))
+        # Compose additional_contexts on Windows: absolute D:\... often yields empty
+        # BuildKit context (oc: 2B) and fails on source=vendor. Prefer ./relative.
+        try:
+            rel = self.offline_cache.resolve().relative_to(self.root.resolve()).as_posix()
+            oc_compose = rel if rel.startswith(".") else f"./{rel}"
+        except ValueError:
+            oc_compose = self.offline_cache.as_posix()
+        app_key = f"{self.config.app_name.upper()}_OFFLINE_CACHE"
+        existing = os.environ.get(app_key, "")
+        looks_win_abs = bool(existing) and (
+            (len(existing) >= 2 and existing[1] == ":") or existing.startswith("\\\\")
+        )
+        if not existing or looks_win_abs:
+            os.environ[app_key] = oc_compose
