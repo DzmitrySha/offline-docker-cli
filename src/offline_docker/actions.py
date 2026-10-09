@@ -20,6 +20,7 @@ from offline_docker.download_npm import download_npm_cache
 from offline_docker.download_trivy import download_trivy_db
 from offline_docker.download_wheels import download_wheels
 from offline_docker.download_yarn import download_yarn_cache
+from offline_docker.hooks import run_after_cache_hooks
 from offline_docker.load_images import load_docker_images
 from offline_docker.trivy_scan import scan_trivy_offline
 from offline_docker.validate import validate_offline_cache
@@ -77,6 +78,7 @@ def download_offline_cache(ctx: ProjectContext) -> None:
     print()
     download_trivy_db(ctx)
     print()
+    run_after_cache_hooks(ctx)
     print("=== offline-cache готов ===")
     print(docker_cmd.dir_size_human(ctx.offline_cache))
 

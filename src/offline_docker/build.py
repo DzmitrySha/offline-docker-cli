@@ -13,6 +13,7 @@ from offline_docker.download_npm import download_npm_cache
 from offline_docker.download_wheels import download_wheels
 from offline_docker.download_yarn import download_yarn_cache
 from offline_docker.ensure_base import build_base_offline, require_base_offline
+from offline_docker.hooks import run_after_cache_hooks
 from offline_docker.load_images import load_docker_images
 from offline_docker.validate import validate_offline_cache
 
@@ -79,6 +80,7 @@ def build_offline(
     download_wheels(ctx)
     download_npm_cache(ctx)
     download_yarn_cache(ctx)
+    run_after_cache_hooks(ctx)
     validate_offline_cache(ctx)
     load_docker_images(ctx)
 
@@ -179,6 +181,14 @@ def up_offline(
     print()
 
     _ensure_traefik_network()
+
+    if not no_build:
+        from offline_docker.sync_cache import maybe_materialize
+
+        maybe_materialize(ctx)
+        run_after_cache_hooks(ctx)
+        validate_offline_cache(ctx)
+        load_docker_images(ctx)
 
     if no_cache and not no_build:
         build_cmd = ["docker", "compose", *env_file_args, *compose_args, "build", "--no-cache"]
