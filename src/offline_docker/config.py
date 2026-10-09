@@ -54,6 +54,24 @@ class TrivyConfig:
 
 
 @dataclass
+class CacheHook:
+    """Project hook run after standard offline-cache downloads."""
+
+    name: str
+    win: list[str] = field(default_factory=list)
+    sh: list[str] = field(default_factory=list)
+    script: str | None = None
+
+
+@dataclass
+class VendorPathCheck:
+    """Required path under offline-cache (glob allowed), e.g. vendor/VERSIONS."""
+
+    path: str
+    label: str
+
+
+@dataclass
 class ProjectConfig:
     root: Path
     offline_cache: Path
@@ -81,6 +99,8 @@ class ProjectConfig:
     dockerfiles: DockerfilesConfig = field(default_factory=DockerfilesConfig)
     images: ImagesConfig = field(default_factory=ImagesConfig)
     critical_wheels: list[WheelPattern] = field(default_factory=list)
+    critical_vendor: list[VendorPathCheck] = field(default_factory=list)
+    after_cache_hooks: list[CacheHook] = field(default_factory=list)
     trivy: TrivyConfig = field(default_factory=TrivyConfig)
     build_services: list[str] = field(
         default_factory=lambda: ["base", "backend", "frontend"]
@@ -278,6 +298,61 @@ def _parse_critical_wheels(raw: list[Any]) -> list[WheelPattern]:
     return wheels
 
 
+def _parse_critical_vendor(raw: list[Any]) -> list[VendorPathCheck]:
+    items: list[VendorPathCheck] = []
+    for item in raw:
+        if isinstance(item, dict):
+            path = str(item.get("path") or item.get("pattern") or "")
+            if not path:
+                continue
+            items.append(VendorPathCheck(path, str(item.get("label", path))))
+        elif isinstance(item, str):
+            items.append(VendorPathCheck(item, item))
+        elif isinstance(item, (list, tuple)) and len(item) >= 1:
+            path = str(item[0])
+            label = str(item[1]) if len(item) >= 2 else path
+            items.append(VendorPathCheck(path, label))
+    return items
+
+
+def _parse_after_cache_hooks(raw: list[Any]) -> list[CacheHook]:
+    hooks: list[CacheHook] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("script") or "hook")
+        win = [str(x) for x in item.get("win", [])] if isinstance(item.get("win"), list) else []
+        sh = [str(x) for x in item.get("sh", [])] if isinstance(item.get("sh"), list) else []
+        script = str(item["script"]) if item.get("script") else None
+        # Convenience: "run" as platform-neutral argv
+        run = item.get("run")
+        if isinstance(run, list) and run:
+            argv = [str(x) for x in run]
+            if not win:
+                win = list(argv)
+            if not sh:
+                sh = list(argv)
+        hooks.append(CacheHook(name=name, win=win, sh=sh, script=script))
+    return hooks
+
+
+def dockerfile_uses_vendor_mount(cfg: ProjectConfig) -> bool:
+    """True if any offline Dockerfile bind-mounts source=vendor from oc."""
+    candidates = (
+        cfg.dockerfiles.backend_offline,
+        cfg.dockerfiles.base_offline,
+        cfg.dockerfiles.frontend_offline,
+    )
+    for rel in candidates:
+        path = cfg.path(rel)
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if "source=vendor" in text:
+            return True
+    return False
+
+
 def _merge_config_dict(base: ProjectConfig, data: dict[str, Any]) -> ProjectConfig:
     if "offline_cache" in data:
         base.offline_cache = base.path(str(data["offline_cache"]))
@@ -379,8 +454,17 @@ def _merge_config_dict(base: ProjectConfig, data: dict[str, Any]) -> ProjectConf
             base.images.frontend = tag.replace(":offline", ":latest")
 
     val = data.get("validate", {})
-    if isinstance(val, dict) and "critical_wheels" in val:
-        base.critical_wheels = _parse_critical_wheels(val["critical_wheels"])
+    if isinstance(val, dict):
+        if "critical_wheels" in val:
+            base.critical_wheels = _parse_critical_wheels(val["critical_wheels"])
+        if "critical_vendor" in val:
+            base.critical_vendor = _parse_critical_vendor(val["critical_vendor"])
+
+    hooks = data.get("hooks", {})
+    if isinstance(hooks, dict) and "after_cache" in hooks:
+        raw_hooks = hooks["after_cache"]
+        if isinstance(raw_hooks, list):
+            base.after_cache_hooks = _parse_after_cache_hooks(raw_hooks)
 
     trivy = data.get("trivy", {})
     if isinstance(trivy, dict):
@@ -469,7 +553,10 @@ def project_config_to_dict(cfg: ProjectConfig) -> dict[str, Any]:
         "validate": {
             "critical_wheels": [
                 {"pattern": w.pattern, "label": w.label} for w in cfg.critical_wheels
-            ]
+            ],
+            "critical_vendor": [
+                {"path": v.path, "label": v.label} for v in cfg.critical_vendor
+            ],
         },
         "trivy": {
             "scanner_image": cfg.trivy.scanner_image,
@@ -479,6 +566,18 @@ def project_config_to_dict(cfg: ProjectConfig) -> dict[str, Any]:
         },
         "build_services": list(cfg.build_services),
     }
+    if cfg.after_cache_hooks:
+        data["hooks"] = {
+            "after_cache": [
+                {
+                    "name": h.name,
+                    **({"script": h.script} if h.script else {}),
+                    **({"win": list(h.win)} if h.win else {}),
+                    **({"sh": list(h.sh)} if h.sh else {}),
+                }
+                for h in cfg.after_cache_hooks
+            ]
+        }
     if cfg.compose_up_offline_lab:
         data["compose_up_offline_lab"] = list(cfg.compose_up_offline_lab)
     if cfg.python_project_dir and cfg.python_project_dir != ".":
