@@ -58,7 +58,11 @@
     "critical_wheels": [
       {"pattern": "torch-*.whl", "label": "torch"},
       {"pattern": "sqlalchemy-*.whl", "label": "sqlalchemy"}
-    ]
+    ],
+    "critical_vendor": []
+  },
+  "hooks": {
+    "after_cache": []
   },
   "trivy": {
     "scanner_image": "aquasec/trivy:latest",

@@ -4,6 +4,7 @@
 
 CLI **не содержит** конфигов конкретных проектов — всё берётся из целевого репозитория (`--project`).
 
+**2.2.0:** `hooks.after_cache` в `.offline-docker.json` — проектные скрипты после кэша (vendor и т.п.); `AGENTS.md` для агентов.
 **2.1.0:** удалены deprecated aliases старых команд и entrypoint `offline-docker` (только `offdock`).
 **2.0.0 (breaking):** бинарь `offdock`, короткие команды (`cache`, `build`, `up`, `down`, `scan`).
 
@@ -279,6 +280,12 @@ offline-docker-cli/
 - Docker (CLI на PATH)
 
 ## Changelog
+
+### 2.2.0
+
+- `hooks.after_cache` в `.offline-docker.json`: win/sh/script хуки после `cache` / перед offline-сборкой (vendor binaries и т.п.).
+- `validation.critical_vendor` — проверка критичных vendor-артефактов в статусе кэша.
+- `AGENTS.md` — правила для агентов при работе с CLI.
 
 ### 2.1.0
 
