@@ -57,8 +57,11 @@ _CACHE_EPILOG = """\
   offdock cache check -p .      # проверить полноту кэша в проекте
   offdock cache load -p .       # *.tar -> docker load в локальный daemon
 
-cache check - валидация offline-cache (wheels/debs/npm/images/...),
+cache check - валидация offline-cache (wheels/debs/npm/images/vendor/...),
 бывший validate-offline-cache. Не качает ничего, только проверяет.
+
+hooks.after_cache в .offline-docker.json — проектные скрипты после
+стандартного cache (например scripts/cache-vendor.ps1 для vendor/).
 """
 
 _UP_EPILOG = """\

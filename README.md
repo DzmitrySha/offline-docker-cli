@@ -1,11 +1,10 @@
 # offline-docker-cli
 
-**Для агентов:** [`AGENTS.md`](AGENTS.md) · площадка: `d:\opo\NeuroAI\all_NeuroAI\docs\PLATFORM.md`.
-
 Универсальная Python CLI (**`offdock`**) для подготовки **offline-cache**, валидации, офлайн-сборки Docker-образов и **Trivy**-сканирования.
 
 CLI **не содержит** конфигов конкретных проектов — всё берётся из целевого репозитория (`--project`).
 
+**2.2.0:** `hooks.after_cache` в `.offline-docker.json` — проектные скрипты после кэша (vendor и т.п.); `AGENTS.md` для агентов.
 **2.1.0:** удалены deprecated aliases старых команд и entrypoint `offline-docker` (только `offdock`).
 **2.0.0 (breaking):** бинарь `offdock`, короткие команды (`cache`, `build`, `up`, `down`, `scan`).
 
@@ -14,7 +13,7 @@ CLI **не содержит** конфигов конкретных проект
 ### Вариант A — без pip (рекомендуется в corp-сети)
 
 ```powershell
-D:\opo\NeuroAI\offline-docker-cli\offdock.cmd discover -p D:\opo\NeuroAI\prognoz_np
+D:\opo\NeuroAI\offline-docker-cli\offdock.cmd discover -p D:\opo\NeuroAI\prognoz-np
 ```
 
 ### Вариант B — pip (если PyPI доступен)
@@ -281,6 +280,12 @@ offline-docker-cli/
 - Docker (CLI на PATH)
 
 ## Changelog
+
+### 2.2.0
+
+- `hooks.after_cache` в `.offline-docker.json`: win/sh/script хуки после `cache` / перед offline-сборкой (vendor binaries и т.п.).
+- `validation.critical_vendor` — проверка критичных vendor-артефактов в статусе кэша.
+- `AGENTS.md` — правила для агентов при работе с CLI.
 
 ### 2.1.0
 
