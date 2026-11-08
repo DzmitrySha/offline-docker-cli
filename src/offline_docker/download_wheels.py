@@ -16,13 +16,31 @@ export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 apt-get install -y --no-install-recommends \
-  python3.12 python3.12-venv python3.12-dev python3-pip ca-certificates curl \
-  build-essential pkg-config cython3 \
+  ca-certificates curl build-essential pkg-config cython3 \
   ffmpeg libavformat-dev libavcodec-dev libavdevice-dev \
   libavutil-dev libavfilter-dev libswscale-dev libswresample-dev
 rm -rf /var/lib/apt/lists/*
 
-python3.12 -m venv /opt/venv
+# Python берём из базового образа (python:3.12-slim и т.п.): его версия задаёт
+# ABI скачанных wheel-ов. Пакеты python3.12* из apt ставить нельзя — в Debian 13
+# (trixie) их нет, там python3 = 3.13. apt-пакеты python3* нужны только когда
+# интерпретатора/venv в образе нет (ubuntu:24.04, debian:bookworm-slim).
+if ! command -v python3 >/dev/null 2>&1 || ! python3 -c 'import venv, ensurepip' >/dev/null 2>&1; then
+  echo ">>> python3/venv в образе нет — ставим из apt"
+  apt-get update
+  apt-get install -y --no-install-recommends python3 python3-venv python3-dev python3-pip
+  rm -rf /var/lib/apt/lists/*
+fi
+PYTHON=python3
+echo ">>> python: $($PYTHON -V) ($(command -v $PYTHON))"
+if [[ -n "${PYTHON_MIN:-}" ]] && ! $PYTHON -c \
+  "import sys; sys.exit(0 if sys.version_info[:2] >= tuple(int(x) for x in '${PYTHON_MIN}'.split('.')) else 1)"; then
+  echo "ERROR: python в образе $($PYTHON -V) старее requires-python проекта (>=${PYTHON_MIN});" \
+       "wheel-ы получились бы для чужого ABI. Возьмите образ с python ${PYTHON_MIN}+." >&2
+  exit 1
+fi
+
+$PYTHON -m venv /opt/venv
 export PATH="/opt/venv/bin:$PATH"
 export UV_PROJECT_ENVIRONMENT=/opt/venv
 export UV_LINK_MODE=copy
@@ -268,6 +286,10 @@ def download_wheels(ctx: ProjectContext) -> None:
     print(f"torch:            {tv or '(нет)'}")
     print(f"use_uv_export:    {ctx.config.use_uv_export}")
     print(f"python project:   {ctx.config.effective_python_project_dir()}")
+    print(
+        "Python (образ):   "
+        f"{ctx.config.deb_ubuntu_image} (нужно >= {ctx.config.python_requires_min() or '—'})"
+    )
     print(f"Resolve:          {' -> '.join(resolver.settings.resolve.order)}")
     print(f"PyPI chain:       {' -> '.join(chain) if chain else '(find-links only)'}")
     if used_fallback and resolver.is_local_only():
@@ -299,6 +321,7 @@ def download_wheels(ctx: ProjectContext) -> None:
         f"UV_PROJECT_DIR={project_dir}",
         f"UV_EXPORT_PRUNE={prune}",
         f"EXTRA_WHEEL_SPECS={extra}",
+        f"PYTHON_MIN={ctx.config.python_requires_min() or ''}",
     ]
 
     docker_cmd.run(

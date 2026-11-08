@@ -35,6 +35,17 @@ echo "deb [trusted=yes] {mirror} ./" > /etc/apt/sources.list.d/od-mirror-{i}.lis
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
+# Cache debs is bound to the guest distro: Ubuntu/Debian .deb несовместимы, и
+# dpkg -i чужих пакетов ломает базовый образ. Тег образа может переехать
+# (python:3.12-slim bookworm -> trixie) — сбрасываем кэш при смене базы.
+. /etc/os-release
+BASE_OS="$ID-$VERSION_ID"
+if [ -f /debs/.base-os ] && [ "$(cat /debs/.base-os)" != "$BASE_OS" ]; then
+  echo ">>> База изменилась: $(cat /debs/.base-os) -> $BASE_OS - очищаю старые .deb"
+  find /debs -maxdepth 1 -name '*.deb' -delete
+fi
+printf '%s\\n' "$BASE_OS" > /debs/.base-os
+
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl gnupg
 {apt_mirror_script}

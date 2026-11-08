@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from offline_docker.config import load_config
+from offline_docker.config import ProjectConfig, load_config
 
 
 class LoadConfigImagesTest(unittest.TestCase):
@@ -150,6 +150,37 @@ class LoadConfigImagesTest(unittest.TestCase):
             cfg_path.write_text(json.dumps({"use_uv_export": False}), encoding="utf-8")
             cfg = load_config(root, config_file=cfg_path)
             self.assertFalse(cfg.use_uv_export)
+
+
+class PythonRequiresMinTest(unittest.TestCase):
+    def _cfg(self, pyproject: str | None, rel: str = "backend/pyproject.toml"):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        if pyproject is not None:
+            p = root / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(pyproject, encoding="utf-8")
+        return ProjectConfig(
+            root=root,
+            offline_cache=root / "oc",
+            log_dir=root / "logs",
+            python_lock_files=[rel],
+        )
+
+    def test_lower_bound(self) -> None:
+        cfg = self._cfg('[project]\nname = "x"\nrequires-python = ">=3.12"\n')
+        self.assertEqual(cfg.python_requires_min(), "3.12")
+
+    def test_range_takes_lower_bound(self) -> None:
+        cfg = self._cfg('[project]\nrequires-python = ">=3.11,<3.14"\n')
+        self.assertEqual(cfg.python_requires_min(), "3.11")
+
+    def test_missing(self) -> None:
+        cfg = self._cfg('[project]\nname = "x"\n')
+        self.assertIsNone(cfg.python_requires_min())
+        cfg_no_file = self._cfg(None)
+        self.assertIsNone(cfg_no_file.python_requires_min())
 
 
 if __name__ == "__main__":

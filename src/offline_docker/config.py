@@ -239,6 +239,29 @@ class ProjectConfig:
             return self._normalize_project_dir(self.python_project_dir)
         return self.infer_python_project_dir()
 
+    def python_requires_min(self) -> str | None:
+        """`requires-python` из pyproject.toml как 'X.Y' (нижняя граница)."""
+        import re
+
+        proj = self.effective_python_project_dir()
+        base = self.root if proj == "." else self.root / proj
+        pyproject = base / "pyproject.toml"
+        if not pyproject.is_file():
+            return None
+        text = pyproject.read_text(encoding="utf-8", errors="replace")
+        requires: str | None = None
+        try:
+            import tomllib
+
+            requires = tomllib.loads(text).get("project", {}).get("requires-python")
+        except Exception:
+            match = re.search(r'requires-python\s*=\s*"([^"]+)"', text)
+            requires = match.group(1) if match else None
+        if not requires:
+            return None
+        match = re.search(r"(\d+)\.(\d+)", requires)
+        return f"{match.group(1)}.{match.group(2)}" if match else None
+
     def infer_use_uv_export(self) -> bool:
         proj = self.effective_python_project_dir()
         base = self.root if proj == "." else self.root / proj
