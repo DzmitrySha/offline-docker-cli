@@ -33,6 +33,6 @@ Offline-рецепты apps **не** `include` в root `.gitlab-ci.yml` (prod ta
 
 1. Русский в ответах.
 2. Не ломать CLI API без major; см. README (breaking 2.x). Entrypoint только `offdock`.
-3. При правках — проверять на реальном `-p` (`C:\work\my-project`).
+3. При правках — проверять на реальном `-p` (`..\my-project`).
 4. Версия синхронно в `pyproject.toml` и `src/offline_docker/__init__.py`.
 5. Хуки/vendor — контракт проекта; не «проглатывать» отсутствие скрипта или critical paths.

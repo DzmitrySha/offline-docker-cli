@@ -32,7 +32,7 @@ CI runs `uv sync --locked --extra dev`, so a stale `uv.lock` fails the pipeline.
 On Windows, `offdock.cmd` sets `PYTHONPATH=src` and runs `python -m offline_docker`:
 
 ```powershell
-offdock.cmd discover -p C:\work\my-project
+offdock.cmd discover -p ..\my-project
 ```
 
 ## Contracts
@@ -49,8 +49,8 @@ See also [`AGENTS.md`](AGENTS.md).
 
 Before opening a PR, run the changed command against a real target:
 
-- `offdock discover -p C:\work\my-project`
-- `offdock discover -p D:\work\another-project`
+- `offdock discover -p ..\my-project`
+- `offdock discover -p ..\another-project`
 
 ## Documentation
 

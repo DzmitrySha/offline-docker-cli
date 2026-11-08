@@ -74,13 +74,14 @@ The `offline-cache/` bundle is transferred to the offline machine manually — t
 ### Option A — without pip (recommended in a corp network)
 
 ```powershell
-C:\tools\offline-docker-cli\offdock.cmd discover -p C:\work\my-project
+# from the offline-docker-cli repository root
+.\offdock.cmd discover -p ..\my-project
 ```
 
 ### Option B — pip (if PyPI is reachable)
 
 ```powershell
-cd C:\tools\offline-docker-cli
+cd offline-docker-cli
 pip install -e .
 pip install -e ".[yaml]"   # optional: .offline-docker.yaml
 pip install -e ".[tui]"    # optional: Textual TUI
@@ -93,7 +94,7 @@ A terminal UI on top of the same commands (cache status, menu, live log). The CL
 
 ```powershell
 # Install for use without -e so the package lives in site-packages
-pip install C:\tools\offline-docker-cli\[tui]
+pip install .\[tui]
 
 # Run
 offdock tui -p .
@@ -107,7 +108,7 @@ Use `-e` when developing the CLI itself.
 Generate a draft config (recursive scan) or copy the template from `examples/`:
 
 ```powershell
-cd C:\work\my-project
+cd ..\my-project
 offdock init -p .          # → .offline-docker.json (or .generated.json)
 offdock discover -p .
 offdock cache -p .
@@ -164,11 +165,13 @@ offdock up --help
 
 ## Command examples
 
+Paths are relative: commands run from the `offline-docker-cli` root, and the target project is the sibling directory `my-project`.
+
 ### Preparation and build
 
 ```powershell
 # Full cache preparation cycle (on a machine with internet access)
-offdock cache -p C:\work\my-project
+offdock cache -p ..\my-project
 
 # On the offline machine: load images and build
 offdock cache load -p .
@@ -337,7 +340,7 @@ uv run offdock --help
 
 - After changing dependencies — run `uv lock` and commit `uv.lock`.
 - Keep the version in sync in `pyproject.toml` and `src/offline_docker/__init__.py`.
-- Verify against a real project: `offdock discover -p C:\work\my-project`.
+- Verify against a real project: `offdock discover -p ..\my-project`.
 - Run without installing — `offdock.cmd` (`PYTHONPATH=src`, `python -m offline_docker`).
 
 ## Repository layout

@@ -32,7 +32,7 @@ CI выполняет `uv sync --locked --extra dev`, поэтому устар�
 В Windows `offdock.cmd` выставляет `PYTHONPATH=src` и запускает `python -m offline_docker`:
 
 ```powershell
-offdock.cmd discover -p C:\work\my-project
+offdock.cmd discover -p ..\my-project
 ```
 
 ## Контракты
@@ -49,8 +49,8 @@ offdock.cmd discover -p C:\work\my-project
 
 Перед PR прогоните изменённую команду на реальном целевом проекте:
 
-- `offdock discover -p C:\work\my-project`
-- `offdock discover -p D:\work\another-project`
+- `offdock discover -p ..\my-project`
+- `offdock discover -p ..\another-project`
 
 ## Документация
 

@@ -74,13 +74,14 @@ flowchart LR
 ### Вариант A — без pip (рекомендуется в corp-сети)
 
 ```powershell
-C:\tools\offline-docker-cli\offdock.cmd discover -p C:\work\my-project
+# из корня репозитория offline-docker-cli
+.\offdock.cmd discover -p ..\my-project
 ```
 
 ### Вариант B — pip (если PyPI доступен)
 
 ```powershell
-cd C:\tools\offline-docker-cli
+cd offline-docker-cli
 pip install -e .
 pip install -e ".[yaml]"   # опционально: .offline-docker.yaml
 pip install -e ".[tui]"    # опционально: Textual TUI
@@ -93,7 +94,7 @@ offdock configure          # ProGet/Nexus URL (Enter = только offline-cach
 
 ```powershell
 # Установка (для использования — без -e, чтобы пакет жил в site-packages)
-pip install C:\tools\offline-docker-cli\[tui]
+pip install .\[tui]
 
 # Запуск
 offdock tui -p .
@@ -107,7 +108,7 @@ offdock tui -p .
 Сгенерировать черновик конфига (рекурсивный scan) или скопировать шаблон из `examples/`:
 
 ```powershell
-cd C:\work\my-project
+cd ..\my-project
 offdock init -p .          # → .offline-docker.json (или .generated.json)
 offdock discover -p .
 offdock cache -p .
@@ -164,11 +165,13 @@ offdock up --help
 
 ## Примеры команд
 
+Пути относительны: команды запускаются из корня `offline-docker-cli`, целевой проект — соседний каталог `my-project`.
+
 ### Подготовка и сборка
 
 ```powershell
 # Полный цикл подготовки кэша (на машине с интернетом)
-offdock cache -p C:\work\my-project
+offdock cache -p ..\my-project
 
 # На офлайн-машине: загрузить образы и собрать
 offdock cache load -p .
@@ -337,7 +340,7 @@ uv run offdock --help
 
 - После правок зависимостей — `uv lock` и коммит `uv.lock`.
 - Версия синхронизируется в `pyproject.toml` и `src/offline_docker/__init__.py`.
-- Проверка на реальном проекте: `offdock discover -p C:\work\my-project`.
+- Проверка на реальном проекте: `offdock discover -p ..\my-project`.
 - Запуск без установки — `offdock.cmd` (`PYTHONPATH=src`, `python -m offline_docker`).
 
 ## Структура репозитория
