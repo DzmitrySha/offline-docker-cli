@@ -1,0 +1,19 @@
+## What changed
+
+<!-- Summary of the change. -->
+
+## Why
+
+<!-- Problem being solved, link to an issue if any. -->
+
+## How verified
+
+- [ ] `uv sync --extra dev`
+- [ ] `uv run pytest -q`
+- [ ] `uv run offdock --help`
+- [ ] Ran against a real `-p` project (`ai-template` / `prognoz-np` / `ai-assistants-factory`)
+- [ ] Docs updated: `README.md` (RU) and `.github/README.md` (EN)
+
+## Notes
+
+<!-- Compatibility, migration, or follow-up notes. -->

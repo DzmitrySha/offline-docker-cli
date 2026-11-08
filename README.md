@@ -1,12 +1,73 @@
-# offline-docker-cli
+<div align="center">
 
-Универсальная Python CLI (**`offdock`**) для подготовки **offline-cache**, валидации, офлайн-сборки Docker-образов и **Trivy**-сканирования.
+<h1>offdock</h1>
 
-CLI **не содержит** конфигов конкретных проектов — всё берётся из целевого репозитория (`--project`).
+Универсальная Python CLI для portable offline-cache, офлайн-сборки Docker-образов и Trivy-сканирования проектов NeuroAI.<br>
+Весь конфиг живёт в целевом репозитории (`.offline-docker.json`); CLI не содержит настроек конкретных проектов.
 
-**2.2.0:** `hooks.after_cache` в `.offline-docker.json` — проектные скрипты после кэша (vendor и т.п.); `AGENTS.md` для агентов.
-**2.1.0:** удалены deprecated aliases старых команд и entrypoint `offline-docker` (только `offdock`).
-**2.0.0 (breaking):** бинарь `offdock`, короткие команды (`cache`, `build`, `up`, `down`, `scan`).
+<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2dd4bf?style=flat-square" alt="License: MIT"></a>
+<img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
+<img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
+<img src="https://img.shields.io/badge/Trivy-scan-1904DA?style=flat-square" alt="Trivy">
+<img src="https://img.shields.io/badge/uv-locked-DE5FE1?style=flat-square" alt="uv">
+<img src="https://img.shields.io/badge/i18n-RU%20%2F%20EN-22c55e?style=flat-square" alt="RU / EN">
+
+<sub><a href=".github/README.md">English</a> · Русская версия · <a href="docs/ru/CONTRIBUTING.md">Участие</a> · <a href="docs/ru/SECURITY.md">Безопасность</a> · <a href="docs/ru/CHANGELOG.md">Changelog</a></sub>
+
+</div>
+
+---
+
+## Содержание
+
+- [Как это работает](#как-это-работает)
+- [Возможности](#возможности)
+- [Установка](#установка)
+- [Быстрый старт](#быстрый-старт)
+- [Команды](#команды)
+- [Общие флаги](#общие-флаги)
+- [Примеры команд](#примеры-команд)
+- [Конфигурация целевого проекта](#конфигурация-целевого-проекта)
+- [Источники пакетов (local / ProGet / Nexus)](#источники-пакетов-local--proget--nexus)
+- [Env-переменные](#env-переменные)
+- [Требования](#требования)
+- [Разработка и тесты](#разработка-и-тесты)
+- [Структура репозитория](#структура-репозитория)
+- [Ограничения](#ограничения)
+- [Участие](#участие)
+- [Лицензия](#лицензия)
+- [Changelog](#changelog)
+
+## Как это работает
+
+```mermaid
+flowchart LR
+  proj[целевой репозиторий<br/>.offline-docker.json] -->|discover| plan[cache plan]
+  net[(PyPI / npm / apt / registry)] -->|cache| bundle[(offline-cache/)]
+  plan --> bundle
+  bundle -->|перенос вручную| offline[офлайн-машина]
+  offline -->|cache load| images[docker images]
+  offline -->|build| images
+  images -->|up / down| stack[Docker Compose]
+  bundle -->|scan| trivy[Trivy offline DB]
+```
+
+Бандл-папка `offline-cache/` переносится на офлайн-машину вручную — постоянного зеркала/registry-сервиса нет. Compose-файлы склеиваются из `compose_build` / `compose_up_offline` конфига проекта.
+
+## Возможности
+
+| Возможность | Что даёт |
+|-------------|----------|
+| Project-scoped конфиг | Всё в целевом репозитории: `.offline-docker.json` (или `.yaml`); CLI не хранит проектные настройки |
+| Portable offline-cache | debs, wheels, npm, yarn, docker images, Trivy DB в одной переносимой папке |
+| Источники local → ProGet → Nexus | `resolve.order`, user-level `sources.json`, project override |
+| `cache wheels` | Python берётся из базового образа + ABI-проверка версии |
+| `cache debs` | Кэш привязан к дистрибутиву гостевого образа (`debs/.base-os`) |
+| `hooks.after_cache` + `validation.critical_vendor` | Проектные хуки после кэша и проверка критичных vendor-артефактов |
+| `build` | Офлайн-сборка с merge-файлами и списком сервисов |
+| `up` / `down` | Offline / lab / online режимы Compose |
+| Trivy-скан | Офлайн-БД и лог в `{log_dir}` |
+| Опциональный Textual TUI | Статус кэша, меню команд и live-лог поверх тех же действий CLI |
 
 ## Установка
 
@@ -38,7 +99,7 @@ pip install D:\opo\NeuroAI\offline-docker-cli\[tui]
 offdock tui -p .
 ```
 
-**Важно:** `pip install -e ".[tui]"` (editable) привязывает пакет к папке исходников — если папку переместить/удалить, CLI сломается. Для использования рекомендуется **обычная установка** (без `-e`).  
+**Важно:** `pip install -e ".[tui]"` (editable) привязывает пакет к папке исходников — если папку переместить/удалить, CLI сломается. Для использования рекомендуется **обычная установка** (без `-e`).
 Для разработки самого CLI — тогда `-e`.
 
 ## Быстрый старт
@@ -64,7 +125,7 @@ offdock up -p .
 | Нет `.offline-docker.json` / `.yaml` | создаётся `.offline-docker.json` |
 | Канон уже есть | пишется `.offline-docker.generated.json` (канон **не** затирается) |
 
-В JSON есть секция `_init.gaps` и в stdout — блок `Missing / to fix:` (нет `Dockerfile.*.offline`, offline-compose и т.д.).  
+В JSON есть секция `_init.gaps` и в stdout — блок `Missing / to fix:` (нет `Dockerfile.*.offline`, offline-compose и т.д.).
 **Не** генерируются сами offline-Dockerfile / compose — только пути и список доработок.
 
 ```powershell
@@ -88,7 +149,7 @@ offdock init -p . --dry-run   # только отчёт
 | `down [--lab\|--online] [services]` | Compose down того же стека |
 | `scan [trivy] <backend\|frontend> [image]` | Скан образа (default: trivy) |
 
-### Общие флаги
+## Общие флаги
 
 - `--project PATH` / `-p` — корень целевого проекта (default: текущий каталог)
 - `--config PATH` — явный путь к конфигу (default: `.offline-docker.json` в корне проекта)
@@ -166,7 +227,7 @@ offdock down -p . backend frontend
 
 ### `scan`
 
-**Обязательный** target: `backend` или `frontend`.  
+**Обязательный** target: `backend` или `frontend`.
 Опционально — сканер (`trivy`, default) и тег образа.
 
 ```powershell
@@ -260,72 +321,62 @@ Env: `OFFLINE_RESOLVE_ORDER=local,proget,nexus` — временный override 
 | `PYPI_INDEX` | Force primary PyPI index |
 | `DOCKER_BUILDKIT` | `1` для build |
 
-## Структура репозитория
-
-```
-offline-docker-cli/
-├── pyproject.toml
-├── README.md
-├── examples/              # шаблоны .offline-docker.json
-└── src/offline_docker/
-    ├── cli.py
-    ├── config.py
-    ├── discover.py
-    └── ...
-```
-
 ## Требования
 
 - Python 3.11+
 - Docker (CLI на PATH)
 
+## Разработка и тесты
+
+```bash
+uv sync --extra dev      # .venv с pyyaml, textual, pytest
+uv run pytest -q         # весь набор tests/
+uv run offdock --version
+uv run offdock --help
+```
+
+- После правок зависимостей — `uv lock` и коммит `uv.lock`.
+- Версия синхронизируется в `pyproject.toml` и `src/offline_docker/__init__.py`.
+- Проверка на реальном проекте: `offdock discover -p D:\opo\NeuroAI\ai-template` (аналогично `prognoz-np`, `ai-assistants-factory`).
+- Запуск без установки — `offdock.cmd` (`PYTHONPATH=src`, `python -m offline_docker`).
+
+## Структура репозитория
+
+```
+offline-docker-cli/
+├── .github/               # EN README, шаблоны issue/PR, GitHub Actions
+├── docs/ru/               # RU-версии CONTRIBUTING / SECURITY / CHANGELOG
+├── examples/              # шаблоны .offline-docker.json
+├── src/offline_docker/    # CLI, cache, build, scan, TUI
+├── tests/                 # pytest
+├── .gitattributes
+├── .gitlab-ci.yml         # GitLab CI
+├── AGENTS.md              # правила для агентов
+├── CONTRIBUTING.md        # EN
+├── SECURITY.md            # EN
+├── CHANGELOG.md           # EN
+├── LICENSE
+├── offdock.cmd            # запуск без установки (Windows)
+├── pyproject.toml
+└── README.md              # RU (этот файл)
+```
+
+## Ограничения
+
+- Не LAN-зеркало: portable бандл, без постоянного registry-сервиса.
+- Для `build` / `up` нужен Docker.
+- Trivy DB стареет; `db_max_age_days` только предупреждает, не блокирует.
+- Образы тянутся по тегу (digest не пиннится).
+- Конфиги конкретных проектов в CLI не хранятся.
+
+## Участие
+
+Правила разработки и проверки — [docs/ru/CONTRIBUTING.md](docs/ru/CONTRIBUTING.md). Политика безопасности — [docs/ru/SECURITY.md](docs/ru/SECURITY.md); уязвимости не публикуйте в публичном issue.
+
+## Лицензия
+
+[MIT](LICENSE) © 2026 D.Shapovalov.
+
 ## Changelog
 
-### 2.2.0
-
-- `hooks.after_cache` в `.offline-docker.json`: win/sh/script хуки после `cache` / перед offline-сборкой (vendor binaries и т.п.).
-- `validation.critical_vendor` — проверка критичных vendor-артефактов в статусе кэша.
-- `AGENTS.md` — правила для агентов при работе с CLI.
-
-### 2.1.0
-
-- Удалены deprecated aliases старых subcommands (`download-*`, `build-offline`, `up-offline`, `dev-up`, `scan-trivy-offline`, …).
-- Удалён entrypoint `offline-docker` из `pyproject.toml` — только `offdock`.
-
-### 2.0.0
-
-- Бинарь **`offdock`**.
-- Короткие команды: `cache` (+ подкоманды), `build`, `up`, `down`, `scan [trivy]`.
-- `up --online` вместо `dev-up`; `up --lab` без переименования смысла.
-- Новая команда `down` с теми же режимами и поддержкой services.
-
-### 1.4.2
-
-- `configure --with-upstream`: явный режим local + PyPI/npmjs для заполнения кэша с сети.
-- Пустые ProGet/Nexus URL больше не пишут silent local-only — по умолчанию `local,upstream`.
-- `download-wheels`: WARN при local-only fallback; prune устаревших wheels по pin; retry без `--find-links`; `--retries`/`--timeout`.
-- `download-npm-cache`: WARN, если registry взят по умолчанию при local-only.
-
-### 1.4.1
-
-- `download-npm-cache`: гостевой скрипт в `node:*-slim` идёт через `/bin/sh` (dash) — без `set -o pipefail` (иначе `Illegal option -o pipefail`).
-- `offline-docker --version` / `-V`; `__version__` синхронизирован с `pyproject.toml`.
-
-### 1.4.0
-
-- Опциональный Textual TUI: `offline-docker tui` (`pip install -e ".[tui]"`) — статус кэша, меню команд, live-лог.
-- Общий слой `actions` / structured `collect_cache_status` для CLI и TUI.
-
-### 1.3.0
-
-- Мульти-источники пакетов: local → ProGet → Nexus (порядок в `resolve.order`).
-- Команда `offline-docker configure` (user-level `sources.json`; пустые URL = local-only).
-- `download-wheels` / `download-npm-cache` / `download-debs` используют цепочку index URL.
-- Best-effort materialize/publish для Nexus raw и ProGet universal (`publish: true`).
-- `discover` печатает активные sources.
-
-### 1.2.0
-
-- Схема `images`: канонические поля `base`, `backend`, `frontend` (единый тег `cuda12` / `latest` для online и offline).
-- Удалены `legacy_base_*` и retag старых образов.
-- Старый JSON (`base_online`, `backend_offline`, …) читается при загрузке конфига.
+Полная история изменений — [docs/ru/CHANGELOG.md](docs/ru/CHANGELOG.md).

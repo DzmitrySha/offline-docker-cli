@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose a change to offdock
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Scope check: the CLI stores no project-specific config; the only entrypoint is
+        `offdock`; the version stays in sync in `pyproject.toml` and
+        `src/offline_docker/__init__.py`; the CLI API breaks only in a major release.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is painful or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Commands, flags, config fields, expected behavior.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: Does not require storing project-specific config in the CLI
+        - label: Keeps the single `offdock` entrypoint
+        - label: Keeps the version synchronized in `pyproject.toml` and `src/offline_docker/__init__.py`
+        - label: Preserves CLI API compatibility (or is explicitly a major change)

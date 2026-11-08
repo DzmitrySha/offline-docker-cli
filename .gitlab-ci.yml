@@ -1,0 +1,21 @@
+stages: [test]
+
+default:
+  image: python:3.12-slim
+  cache:
+    key: uv-$CI_COMMIT_REF_SLUG
+    paths:
+      - .cache/uv/
+
+variables:
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+
+test:
+  stage: test
+  before_script:
+    - python -m pip install --disable-pip-version-check uv
+  script:
+    - uv sync --locked --extra dev
+    - uv run pytest -q
+    - uv run offdock --version
+    - uv run offdock --help

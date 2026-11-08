@@ -1,0 +1,69 @@
+name: Bug report
+description: Something in offdock behaves incorrectly
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never paste registry tokens (`PROGET_API_KEY`, `NEXUS_AUTH`), private URLs,
+        or proprietary config. Replace them with `REDACTED` before submitting.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Actual behavior and expected behavior.
+      placeholder: |
+        `offdock cache wheels` exits with ...
+        Expected: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands, including the `-p` / `--project` path.
+      placeholder: |
+        1. offdock discover -p <project>
+        2. offdock cache -p <project>
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run offdock?
+      options:
+        - offdock.cmd
+        - pip install -e .
+        - installed wheel
+        - TUI (offdock tui)
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `offdock --version`.
+      placeholder: "offdock 2.2.2"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, Docker version.
+      placeholder: "Windows 11, Python 3.12.7, Docker 27.x"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Full traceback or command output.
+      render: shell
