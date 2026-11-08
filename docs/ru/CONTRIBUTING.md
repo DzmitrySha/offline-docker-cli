@@ -1,6 +1,6 @@
 # Участие
 
-Спасибо за улучшение `offdock`. Репозиторий содержит Python CLI (`offline-docker-cli`); это не деплоируемый NeuroAI-сервис.
+Спасибо за улучшение `offdock`. Репозиторий содержит Python CLI (`offline-docker-cli`); это CLI-инструмент, а не деплоируемый сервис.
 
 ## Окружение
 
@@ -32,7 +32,7 @@ CI выполняет `uv sync --locked --extra dev`, поэтому устар�
 В Windows `offdock.cmd` выставляет `PYTHONPATH=src` и запускает `python -m offline_docker`:
 
 ```powershell
-offdock.cmd discover -p D:\opo\NeuroAI\prognoz-np
+offdock.cmd discover -p C:\work\my-project
 ```
 
 ## Контракты
@@ -49,9 +49,8 @@ offdock.cmd discover -p D:\opo\NeuroAI\prognoz-np
 
 Перед PR прогоните изменённую команду на реальном целевом проекте:
 
-- `offdock discover -p D:\opo\NeuroAI\ai-template`
-- `offdock discover -p D:\opo\NeuroAI\prognoz-np`
-- `offdock discover -p D:\opo\NeuroAI\ai-assistants-factory`
+- `offdock discover -p C:\work\my-project`
+- `offdock discover -p D:\work\another-project`
 
 ## Документация
 

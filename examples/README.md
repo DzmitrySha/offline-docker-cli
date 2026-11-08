@@ -1,6 +1,6 @@
 # Шаблон `.offline-docker.json`
 
-Универсальный пример для любого проекта NeuroAI (backend + frontend, slim CUDA base, offline-cache).
+Универсальный пример для любого Docker-проекта (backend + frontend, slim CUDA base, offline-cache).
 
 ## Установка в проект
 
@@ -19,7 +19,7 @@ cp examples/offline-docker.json.example /path/to/your-project/.offline-docker.js
 | Поле | Что заменить |
 |------|----------------|
 | `app_name` | короткое имя приложения (для env `{APP_NAME}_OFFLINE_CACHE`) |
-| `images.base` | shared base (`neuroai-base:cuda12` для NeuroAI) |
+| `images.base` | shared base (`neuroai-base:cuda12`) |
 | `images.backend` / `images.frontend` | теги app-образов (`*:latest`) |
 | `debs.packages` | APT-пакеты из `Dockerfile.base` / `Dockerfile` |
 | `debs.extra_repos` | при необходимости (напр. Microsoft ODBC) |

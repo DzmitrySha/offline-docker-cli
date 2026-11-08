@@ -2,7 +2,7 @@
 
 <h1>offdock</h1>
 
-A universal Python CLI for portable offline caches, offline Docker image builds and Trivy scanning of NeuroAI projects.<br>
+A universal Python CLI for portable offline caches, offline Docker image builds and Trivy scanning of Docker projects.<br>
 All configuration lives in the target repository (`.offline-docker.json`); the CLI stores no project-specific settings.
 
 <a href="../LICENSE"><img src="https://img.shields.io/badge/license-MIT-2dd4bf?style=flat-square" alt="License: MIT"></a>
@@ -74,13 +74,13 @@ The `offline-cache/` bundle is transferred to the offline machine manually — t
 ### Option A — without pip (recommended in a corp network)
 
 ```powershell
-D:\opo\NeuroAI\offline-docker-cli\offdock.cmd discover -p D:\opo\NeuroAI\prognoz-np
+C:\tools\offline-docker-cli\offdock.cmd discover -p C:\work\my-project
 ```
 
 ### Option B — pip (if PyPI is reachable)
 
 ```powershell
-cd D:\opo\NeuroAI\offline-docker-cli
+cd C:\tools\offline-docker-cli
 pip install -e .
 pip install -e ".[yaml]"   # optional: .offline-docker.yaml
 pip install -e ".[tui]"    # optional: Textual TUI
@@ -93,7 +93,7 @@ A terminal UI on top of the same commands (cache status, menu, live log). The CL
 
 ```powershell
 # Install for use without -e so the package lives in site-packages
-pip install D:\opo\NeuroAI\offline-docker-cli\[tui]
+pip install C:\tools\offline-docker-cli\[tui]
 
 # Run
 offdock tui -p .
@@ -107,7 +107,7 @@ Use `-e` when developing the CLI itself.
 Generate a draft config (recursive scan) or copy the template from `examples/`:
 
 ```powershell
-cd D:\opo\NeuroAI\prognoz-np
+cd C:\work\my-project
 offdock init -p .          # → .offline-docker.json (or .generated.json)
 offdock discover -p .
 offdock cache -p .
@@ -168,7 +168,7 @@ offdock up --help
 
 ```powershell
 # Full cache preparation cycle (on a machine with internet access)
-offdock cache -p D:\opo\NeuroAI\prognoz-np
+offdock cache -p C:\work\my-project
 
 # On the offline machine: load images and build
 offdock cache load -p .
@@ -337,7 +337,7 @@ uv run offdock --help
 
 - After changing dependencies — run `uv lock` and commit `uv.lock`.
 - Keep the version in sync in `pyproject.toml` and `src/offline_docker/__init__.py`.
-- Verify against a real project: `offdock discover -p D:\opo\NeuroAI\ai-template` (likewise `prognoz-np`, `ai-assistants-factory`).
+- Verify against a real project: `offdock discover -p C:\work\my-project`.
 - Run without installing — `offdock.cmd` (`PYTHONPATH=src`, `python -m offline_docker`).
 
 ## Repository layout

@@ -1,3 +1,3 @@
-"""Universal Docker offline cache / build CLI for NeuroAI projects."""
+"""Universal Docker offline cache / build CLI."""
 
 __version__ = "2.2.2"

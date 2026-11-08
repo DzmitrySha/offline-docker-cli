@@ -61,7 +61,7 @@ flowchart TD
   - Frontend: `package.json`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`
 - Dataclass `ScanInventory` со списками найденного.
 
-## 2. Назначение ролей (эвристики «шире NeuroAI»)
+## 2. Назначение ролей (эвристики шире шаблона)
 
 Функция `inventory_to_draft_config(root, inventory) -> ProjectConfig`:
 

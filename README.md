@@ -2,7 +2,7 @@
 
 <h1>offdock</h1>
 
-Универсальная Python CLI для portable offline-cache, офлайн-сборки Docker-образов и Trivy-сканирования проектов NeuroAI.<br>
+Универсальная Python CLI для portable offline-cache, офлайн-сборки Docker-образов и Trivy-сканирования Docker-проектов.<br>
 Весь конфиг живёт в целевом репозитории (`.offline-docker.json`); CLI не содержит настроек конкретных проектов.
 
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2dd4bf?style=flat-square" alt="License: MIT"></a>
@@ -74,13 +74,13 @@ flowchart LR
 ### Вариант A — без pip (рекомендуется в corp-сети)
 
 ```powershell
-D:\opo\NeuroAI\offline-docker-cli\offdock.cmd discover -p D:\opo\NeuroAI\prognoz-np
+C:\tools\offline-docker-cli\offdock.cmd discover -p C:\work\my-project
 ```
 
 ### Вариант B — pip (если PyPI доступен)
 
 ```powershell
-cd D:\opo\NeuroAI\offline-docker-cli
+cd C:\tools\offline-docker-cli
 pip install -e .
 pip install -e ".[yaml]"   # опционально: .offline-docker.yaml
 pip install -e ".[tui]"    # опционально: Textual TUI
@@ -93,7 +93,7 @@ offdock configure          # ProGet/Nexus URL (Enter = только offline-cach
 
 ```powershell
 # Установка (для использования — без -e, чтобы пакет жил в site-packages)
-pip install D:\opo\NeuroAI\offline-docker-cli\[tui]
+pip install C:\tools\offline-docker-cli\[tui]
 
 # Запуск
 offdock tui -p .
@@ -107,7 +107,7 @@ offdock tui -p .
 Сгенерировать черновик конфига (рекурсивный scan) или скопировать шаблон из `examples/`:
 
 ```powershell
-cd D:\opo\NeuroAI\prognoz-np
+cd C:\work\my-project
 offdock init -p .          # → .offline-docker.json (или .generated.json)
 offdock discover -p .
 offdock cache -p .
@@ -168,7 +168,7 @@ offdock up --help
 
 ```powershell
 # Полный цикл подготовки кэша (на машине с интернетом)
-offdock cache -p D:\opo\NeuroAI\prognoz-np
+offdock cache -p C:\work\my-project
 
 # На офлайн-машине: загрузить образы и собрать
 offdock cache load -p .
@@ -337,7 +337,7 @@ uv run offdock --help
 
 - После правок зависимостей — `uv lock` и коммит `uv.lock`.
 - Версия синхронизируется в `pyproject.toml` и `src/offline_docker/__init__.py`.
-- Проверка на реальном проекте: `offdock discover -p D:\opo\NeuroAI\ai-template` (аналогично `prognoz-np`, `ai-assistants-factory`).
+- Проверка на реальном проекте: `offdock discover -p C:\work\my-project`.
 - Запуск без установки — `offdock.cmd` (`PYTHONPATH=src`, `python -m offline_docker`).
 
 ## Структура репозитория

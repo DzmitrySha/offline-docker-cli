@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving `offdock`. This repository ships a Python CLI (`offline-docker-cli`); it is not a deployable NeuroAI service.
+Thanks for improving `offdock`. This repository ships a Python CLI (`offline-docker-cli`); it is a CLI tool, not a deployable service.
 
 ## Environment
 
@@ -32,7 +32,7 @@ CI runs `uv sync --locked --extra dev`, so a stale `uv.lock` fails the pipeline.
 On Windows, `offdock.cmd` sets `PYTHONPATH=src` and runs `python -m offline_docker`:
 
 ```powershell
-offdock.cmd discover -p D:\opo\NeuroAI\prognoz-np
+offdock.cmd discover -p C:\work\my-project
 ```
 
 ## Contracts
@@ -49,9 +49,8 @@ See also [`AGENTS.md`](AGENTS.md).
 
 Before opening a PR, run the changed command against a real target:
 
-- `offdock discover -p D:\opo\NeuroAI\ai-template`
-- `offdock discover -p D:\opo\NeuroAI\prognoz-np`
-- `offdock discover -p D:\opo\NeuroAI\ai-assistants-factory`
+- `offdock discover -p C:\work\my-project`
+- `offdock discover -p D:\work\another-project`
 
 ## Documentation
 

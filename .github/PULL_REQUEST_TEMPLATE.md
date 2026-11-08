@@ -11,7 +11,7 @@
 - [ ] `uv sync --extra dev`
 - [ ] `uv run pytest -q`
 - [ ] `uv run offdock --help`
-- [ ] Ran against a real `-p` project (`ai-template` / `prognoz-np` / `ai-assistants-factory`)
+- [ ] Ran against a real `-p` project
 - [ ] Docs updated: `README.md` (RU) and `.github/README.md` (EN)
 
 ## Notes
