@@ -13,7 +13,10 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Topic :: System :: Software Distribution",
+    "Topic :: Utilities",
 ]
 
 dependencies = []
@@ -27,8 +30,10 @@ dev = ["pyyaml>=6.0", "textual>=0.80", "pytest>=8"]
 offdock = "offline_docker.cli:main"
 
 [project.urls]
-Homepage = "https://gitlab.vitebsk.energo.net/opo/neuro-ai/offline-docker-cli"
-Repository = "https://gitlab.vitebsk.energo.net/opo/neuro-ai/offline-docker-cli"
+Homepage = "https://github.com/DzmitrySha/offline-docker-cli"
+Repository = "https://github.com/DzmitrySha/offline-docker-cli"
+Issues = "https://github.com/DzmitrySha/offline-docker-cli/issues"
+Changelog = "https://github.com/DzmitrySha/offline-docker-cli/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["setuptools>=77"]
