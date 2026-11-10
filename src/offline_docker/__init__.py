@@ -1,3 +1,3 @@
 """Universal Docker offline cache / build CLI."""
 
-__version__ = "2.2.2"
+__version__ = "2.2.3"

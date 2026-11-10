@@ -81,9 +81,9 @@ flowchart LR
 ### Вариант B — PyPI
 
 ```powershell
-pip install offline-docker-cli
-pip install "offline-docker-cli[yaml]"   # опционально: .offline-docker.yaml
-pip install "offline-docker-cli[tui]"    # опционально: Textual TUI
+pip install offdock
+pip install "offdock[yaml]"   # опционально: .offline-docker.yaml
+pip install "offdock[tui]"    # опционально: Textual TUI
 offdock configure          # ProGet/Nexus URL (Enter = только offline-cache)
 ```
 
@@ -100,7 +100,7 @@ pip install -e ".[dev]"
 
 ```powershell
 # Обычная установка из PyPI
-pip install "offline-docker-cli[tui]"
+pip install "offdock[tui]"
 
 # Для разработки самого CLI
 pip install -e ".[tui]"

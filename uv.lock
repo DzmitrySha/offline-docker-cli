@@ -68,8 +68,8 @@ wheels = [
 ]
 
 [[package]]
-name = "offline-docker-cli"
-version = "2.2.2"
+name = "offdock"
+version = "2.2.3"
 source = { editable = "." }
 
 [package.optional-dependencies]

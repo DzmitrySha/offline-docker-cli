@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for improving `offdock`. This repository ships a Python CLI (`offline-docker-cli`); it is a CLI tool, not a deployable service.
+Thanks for improving `offdock`. This repository ships a Python CLI (distribution `offdock`, import package `offline_docker`); it is a CLI tool, not a deployable service.
 
 ## Environment
 

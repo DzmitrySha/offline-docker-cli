@@ -1,6 +1,6 @@
 [project]
-name = "offline-docker-cli"
-version = "2.2.2"
+name = "offdock"
+version = "2.2.3"
 description = "Universal Docker offline cache, build and Trivy scan CLI"
 readme = "README.md"
 requires-python = ">=3.11"

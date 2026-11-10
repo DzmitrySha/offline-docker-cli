@@ -1,5 +1,10 @@
 # Changelog
 
+### 2.2.3
+
+- Дистрибутив на PyPI переименован в `offdock`: установка теперь `pip install offdock`. Имя пакета импорта (`offline_docker`), entrypoint `offdock` и конфиг `.offline-docker.json` не изменились.
+- Перед обновлением удалите старый дистрибутив: `pip uninstall offline-docker-cli`.
+
 ### 2.2.2
 
 - `cache debs`: кэш привязан к дистрибутиву гостевого образа — в `debs/.base-os` пишется `<ID>-<VERSION_ID>`; при смене базы (например, `python:3.12-slim` bookworm → trixie) старые `.deb` удаляются автоматически вместо смешивания Ubuntu/Debian пакетов.

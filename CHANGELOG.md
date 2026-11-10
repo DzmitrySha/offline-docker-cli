@@ -1,5 +1,10 @@
 # Changelog
 
+### 2.2.3
+
+- The PyPI distribution has been renamed to `offdock`: install with `pip install offdock`. The import package (`offline_docker`), the `offdock` entry point, and `.offline-docker.json` are unchanged.
+- Remove the old distribution before upgrading: `pip uninstall offline-docker-cli`.
+
 ### 2.2.2
 
 - `cache debs`: the cache is bound to the guest image distribution — `debs/.base-os` stores `<ID>-<VERSION_ID>`; when the base changes (for example, `python:3.12-slim` bookworm → trixie), stale `.deb` files are removed automatically instead of mixing Ubuntu/Debian packages.

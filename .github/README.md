@@ -81,9 +81,9 @@ The `offline-cache/` bundle is transferred to the offline machine manually — t
 ### Option B — PyPI
 
 ```powershell
-pip install offline-docker-cli
-pip install "offline-docker-cli[yaml]"   # optional: .offline-docker.yaml
-pip install "offline-docker-cli[tui]"    # optional: Textual TUI
+pip install offdock
+pip install "offdock[yaml]"   # optional: .offline-docker.yaml
+pip install "offdock[tui]"    # optional: Textual TUI
 offdock configure          # ProGet/Nexus URLs (Enter = offline cache only)
 ```
 
@@ -100,7 +100,7 @@ A terminal UI on top of the same commands (cache status, menu, live log). The CL
 
 ```powershell
 # Regular install from PyPI
-pip install "offline-docker-cli[tui]"
+pip install "offdock[tui]"
 
 # For CLI development
 pip install -e ".[tui]"

@@ -50,7 +50,7 @@ body:
     attributes:
       label: Version
       description: Output of `offdock --version`.
-      placeholder: "offdock 2.2.2"
+      placeholder: "offdock 2.2.3"
     validations:
       required: true
 
