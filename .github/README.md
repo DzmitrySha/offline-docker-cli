@@ -78,14 +78,20 @@ The `offline-cache/` bundle is transferred to the offline machine manually — t
 .\offdock.cmd discover -p ..\my-project
 ```
 
-### Option B — pip (if PyPI is reachable)
+### Option B — PyPI
+
+```powershell
+pip install offline-docker-cli
+pip install "offline-docker-cli[yaml]"   # optional: .offline-docker.yaml
+pip install "offline-docker-cli[tui]"    # optional: Textual TUI
+offdock configure          # ProGet/Nexus URLs (Enter = offline cache only)
+```
+
+### Option C — from source (for development)
 
 ```powershell
 cd offline-docker-cli
-pip install -e .
-pip install -e ".[yaml]"   # optional: .offline-docker.yaml
-pip install -e ".[tui]"    # optional: Textual TUI
-offdock configure          # ProGet/Nexus URLs (Enter = offline cache only)
+pip install -e ".[dev]"
 ```
 
 ### Optional TUI
@@ -93,15 +99,17 @@ offdock configure          # ProGet/Nexus URLs (Enter = offline cache only)
 A terminal UI on top of the same commands (cache status, menu, live log). The CLI remains the primary interface.
 
 ```powershell
-# Install for use without -e so the package lives in site-packages
-pip install .\[tui]
+# Regular install from PyPI
+pip install "offline-docker-cli[tui]"
+
+# For CLI development
+pip install -e ".[tui]"
 
 # Run
 offdock tui -p .
 ```
 
-**Important:** `pip install -e ".[tui]"` (editable) ties the package to the source folder — moving or deleting that folder breaks the CLI. For regular use, prefer a **normal install** (without `-e`).
-Use `-e` when developing the CLI itself.
+**Important:** an editable install (`-e`) ties the package to the source folder — moving or deleting that folder breaks the CLI. For regular use, install from PyPI or use a normal install without `-e`.
 
 ## Quick start
 

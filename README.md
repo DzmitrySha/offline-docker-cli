@@ -78,14 +78,20 @@ flowchart LR
 .\offdock.cmd discover -p ..\my-project
 ```
 
-### Вариант B — pip (если PyPI доступен)
+### Вариант B — PyPI
+
+```powershell
+pip install offline-docker-cli
+pip install "offline-docker-cli[yaml]"   # опционально: .offline-docker.yaml
+pip install "offline-docker-cli[tui]"    # опционально: Textual TUI
+offdock configure          # ProGet/Nexus URL (Enter = только offline-cache)
+```
+
+### Вариант C — из исходников (для разработки)
 
 ```powershell
 cd offline-docker-cli
-pip install -e .
-pip install -e ".[yaml]"   # опционально: .offline-docker.yaml
-pip install -e ".[tui]"    # опционально: Textual TUI
-offdock configure          # ProGet/Nexus URL (Enter = только offline-cache)
+pip install -e ".[dev]"
 ```
 
 ### Опциональный TUI
@@ -93,15 +99,17 @@ offdock configure          # ProGet/Nexus URL (Enter = только offline-cach
 Терминальный UI поверх тех же команд (статус кэша, меню, live-лог). CLI остаётся основным интерфейсом.
 
 ```powershell
-# Установка (для использования — без -e, чтобы пакет жил в site-packages)
-pip install .\[tui]
+# Обычная установка из PyPI
+pip install "offline-docker-cli[tui]"
+
+# Для разработки самого CLI
+pip install -e ".[tui]"
 
 # Запуск
 offdock tui -p .
 ```
 
-**Важно:** `pip install -e ".[tui]"` (editable) привязывает пакет к папке исходников — если папку переместить/удалить, CLI сломается. Для использования рекомендуется **обычная установка** (без `-e`).
-Для разработки самого CLI — тогда `-e`.
+**Важно:** editable-установка (`-e`) привязывает пакет к папке исходников — если папку переместить/удалить, CLI сломается. Для использования ставьте пакет из PyPI или обычной установкой без `-e`.
 
 ## Быстрый старт
 
