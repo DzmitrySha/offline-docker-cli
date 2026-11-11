@@ -25,7 +25,12 @@ test:
         echo ">>> системный python < 3.11: ставлю uv и standalone CPython 3.12"
         command -v uv >/dev/null 2>&1 || curl -fsSL https://astral.sh/uv/install.sh | sh
         export PATH="$HOME/.local/bin:$PATH"
-        uv python install 3.12
+        command -v uv >/dev/null 2>&1 || {
+          echo "!!! uv не установлен: нужен egress к astral.sh или python3.11+ на раннере"; exit 1
+        }
+        uv python install 3.12 || {
+          echo "!!! uv не смог скачать CPython 3.12: нужен egress к github.com/astral.sh или python3.11+ на раннере"; exit 1
+        }
         PY=$(uv python find 3.12)
       fi
       echo ">>> python: $($PY -V 2>&1) [$PY]"
