@@ -1,21 +1,12 @@
+# Раннер — shell-executor: `image:` игнорируется, pip/uv в системе нет.
+# Тесты на stdlib unittest и не требуют зависимостей (pyyaml/textual опциональны).
 stages: [test]
-
-default:
-  image: python:3.12-slim
-  cache:
-    key: uv-$CI_COMMIT_REF_SLUG
-    paths:
-      - .cache/uv/
-
-variables:
-  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
 
 test:
   stage: test
-  before_script:
-    - python -m pip install --disable-pip-version-check uv
   script:
-    - uv sync --locked --extra dev
-    - uv run pytest -q
-    - uv run offdock --version
-    - uv run offdock --help
+    - PY=$(command -v python3.12 || command -v python3.11 || command -v python3)
+    - 'echo "python: $($PY -V 2>&1)"'
+    - PYTHONPATH=src "$PY" -m unittest discover -s tests -t . -q
+    - PYTHONPATH=src "$PY" -m offline_docker --version
+    - PYTHONPATH=src "$PY" -m offline_docker --help > /dev/null
