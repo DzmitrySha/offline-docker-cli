@@ -1,6 +1,14 @@
 # Раннер — shell-executor: `image:` игнорируется, pip/uv в системе нет.
 # Тесты на stdlib unittest и не требуют зависимостей (pyyaml/textual опциональны).
+#
+# GIT_STRATEGY: clone + GIT_DEPTH: 0 — раннер переиспользует каталог сборки,
+# и shallow-fetch в него падал на "git fetch-pack: expected shallow list".
+# Репозиторий маленький: полный клон дешевле разбора shallow-состояния.
 stages: [test]
+
+variables:
+  GIT_STRATEGY: clone
+  GIT_DEPTH: 0
 
 test:
   stage: test

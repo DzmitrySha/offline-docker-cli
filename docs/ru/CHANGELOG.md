@@ -2,7 +2,7 @@
 
 ### Unreleased
 
-- CI: job в GitLab выполняется на общем shell-раннере — тесты идут через stdlib `unittest`, поэтому не нужны ни pip, ни uv; `image:` и uv-кэш убраны из `.gitlab-ci.yml`.
+- CI: job в GitLab выполняется на общем shell-раннере — тесты идут через stdlib `unittest`, поэтому не нужны ни pip, ни uv; в `.gitlab-ci.yml` убраны `image:` и uv-кэш, отключён shallow clone (`GIT_STRATEGY: clone`, `GIT_DEPTH: 0`).
 - Публичные метаданные нейтральны: подсказки `configure` и фикстуры тестов используют `example.com`; корпоративный e-mail убран из `pyproject.toml` и политики безопасности.
 
 ### 2.2.3

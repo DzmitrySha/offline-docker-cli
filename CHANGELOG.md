@@ -2,7 +2,7 @@
 
 ### Unreleased
 
-- CI: GitLab jobs run on the shared shell runner — tests use stdlib `unittest`, so the job needs neither pip nor uv; the Docker `image:` and the uv cache were dropped from `.gitlab-ci.yml`.
+- CI: GitLab jobs run on the shared shell runner — tests use stdlib `unittest`, so the job needs neither pip nor uv; the Docker `image:`, the uv cache and shallow cloning (`GIT_STRATEGY: clone`, `GIT_DEPTH: 0`) were set in `.gitlab-ci.yml`.
 - Public metadata is neutral: `configure` prompt hints and test fixtures use `example.com`; the corporate email was removed from `pyproject.toml` and the security policy.
 
 ### 2.2.3
