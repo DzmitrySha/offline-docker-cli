@@ -1,5 +1,10 @@
 # Changelog
 
+### Unreleased
+
+- CI: job в GitLab выполняется на общем shell-раннере — тесты идут через stdlib `unittest`, поэтому не нужны ни pip, ни uv; `image:` и uv-кэш убраны из `.gitlab-ci.yml`.
+- Публичные метаданные нейтральны: подсказки `configure` и фикстуры тестов используют `example.com`; корпоративный e-mail убран из `pyproject.toml` и политики безопасности.
+
 ### 2.2.3
 
 - Дистрибутив на PyPI переименован в `offdock`: установка теперь `pip install offdock`. Имя пакета импорта (`offline_docker`), entrypoint `offdock` и конфиг `.offline-docker.json` не изменились.

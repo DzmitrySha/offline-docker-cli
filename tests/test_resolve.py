@@ -42,7 +42,7 @@ class ResolveOrderTest(unittest.TestCase):
                     "name": "proget",
                     "type": "proget",
                     "url": "https://proget.example.com",
-                    "feeds": {"pypi": "ve_pypi", "npm": "npm-ve"},
+                    "feeds": {"pypi": "pypi-feed", "npm": "npm-feed"},
                     "enabled": True,
                 },
                 {
@@ -61,13 +61,13 @@ class ResolveOrderTest(unittest.TestCase):
         self.assertEqual(
             chain,
             [
-                "https://proget.example.com/pypi/ve_pypi/simple",
+                "https://proget.example.com/pypi/pypi-feed/simple",
                 "http://nexus.example.com:8081/repository/pypi-group/simple",
             ],
         )
         self.assertEqual(
             resolver.primary_npm_registry(),
-            "https://proget.example.com/npm/npm-ve/",
+            "https://proget.example.com/npm/npm-feed/",
         )
 
     def test_project_cache_overrides_user(self) -> None:
@@ -78,7 +78,7 @@ class ResolveOrderTest(unittest.TestCase):
                     "name": "proget",
                     "type": "proget",
                     "url": "https://proget.user",
-                    "feeds": {"pypi": "ve_pypi"},
+                    "feeds": {"pypi": "pypi-feed"},
                     "enabled": True,
                 },
             ],
@@ -118,7 +118,7 @@ class ResolveOrderTest(unittest.TestCase):
                     "name": "proget",
                     "type": "proget",
                     "url": "https://proget.example.com",
-                    "feeds": {"pypi": "ve_pypi"},
+                    "feeds": {"pypi": "pypi-feed"},
                     "enabled": True,
                 },
                 {
@@ -201,10 +201,10 @@ class ConfigureNonInteractiveTest(unittest.TestCase):
             with mock.patch.dict(os.environ, {"OFFLINE_DOCKER_CONFIG_DIR": tmp}):
                 run_configure(
                     self._ns(
-                        proget_url="https://proget.vitebsk.energo.net",
-                        nexus_url="http://repos.vitebsk.energo.by:8081",
-                        proget_pypi="ve_pypi",
-                        proget_npm="npm-ve",
+                        proget_url="https://proget.example.com",
+                        nexus_url="http://nexus.example.com:8081",
+                        proget_pypi="pypi-feed",
+                        proget_npm="npm-feed",
                         proget_deb="local-deb",
                         nexus_pypi="pypi-group",
                         nexus_npm="npm-group",
@@ -215,7 +215,7 @@ class ConfigureNonInteractiveTest(unittest.TestCase):
                 self.assertEqual(data["resolve"]["order"], ["local", "proget", "nexus"])
                 settings = sources_from_cache_dict(data)
                 resolver = PackageResolver(settings)
-                self.assertIn("ve_pypi", resolver.pypi_index_chain()[0])
+                self.assertIn("pypi-feed", resolver.pypi_index_chain()[0])
                 self.assertIn("pypi-group", resolver.pypi_index_chain()[1])
                 self.assertTrue(any(isinstance(s, ProGetSource) for s in resolver.sources()))
                 self.assertTrue(any(isinstance(s, NexusSource) for s in resolver.sources()))
@@ -279,7 +279,7 @@ class LoadConfigCacheMergeTest(unittest.TestCase):
                                 "name": "proget",
                                 "type": "proget",
                                 "url": "https://proget.example.com",
-                                "feeds": {"pypi": "ve_pypi", "npm": "npm-ve"},
+                                "feeds": {"pypi": "pypi-feed", "npm": "npm-feed"},
                                 "enabled": True,
                             },
                         ],
@@ -292,7 +292,7 @@ class LoadConfigCacheMergeTest(unittest.TestCase):
                 cfg = load_config(root)
                 self.assertEqual(cfg.cache_config_origin, "user")
                 chain = cfg.package_resolver().pypi_index_chain()
-                self.assertEqual(chain[0], "https://proget.example.com/pypi/ve_pypi/simple")
+                self.assertEqual(chain[0], "https://proget.example.com/pypi/pypi-feed/simple")
                 self.assertTrue(save_path.is_file())
 
 

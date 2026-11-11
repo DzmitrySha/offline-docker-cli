@@ -45,5 +45,5 @@ The trust boundary is the target repository and the transferable `offline-cache/
 
 ## Reporting a vulnerability
 
-Report privately through GitHub Security Advisories in the public repository, the corporate GitLab (confidential issue), or by email to `d.shapovalov@vitebsk.energo.net`.
+Report privately through GitHub Security Advisories in the public repository.<br>
 Do **not** open a public issue for a vulnerability.

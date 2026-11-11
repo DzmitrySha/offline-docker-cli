@@ -18,7 +18,7 @@ todos:
     content: "Этап 2: Nexus raw materialize/publish + soft validate"
     status: completed
   - id: stage3-proget
-    content: "Этап 3: ProGetSource (feeds ve_pypi/npm-ve/local-deb и др. из user-config)"
+    content: "Этап 3: ProGetSource (feeds pypi-feed/npm-feed/local-deb и др. из user-config)"
     status: completed
   - id: stage4-debs-docs
     content: "Этап 4: apt, README (после pip install → configure), example остаётся нейтральным"
@@ -71,23 +71,23 @@ isProject: false
 
 Не класть в public example. Использовать как **подсказки в help `configure`** и в операторской заметке README (секция «корп. контур»), поля при промпте по умолчанию **пустые**:
 
-**ProGet** (`https://proget.vitebsk.energo.net`):
+**ProGet** (`https://proget.example.com`):
 
 | Feed | Назначение |
 |------|------------|
-| `ve_pypi` | PyPI |
-| `npm-ve` | npm |
+| `pypi-feed` | PyPI |
+| `npm-feed` | npm |
 | `local-deb` | deb |
-| `local-docker` / `ve-docker` / `repository` | docker |
+| `local-docker` / `docker-<name>` / `repository` | docker |
 | `local-rpm` | rpm (вне скоупа v1) |
 | nuget-* | вне скоупа |
 
 Индексы после configure (если пользователь ввёл URL):
 
-- PyPI: `https://proget.vitebsk.energo.net/pypi/ve_pypi/simple`
-- npm: `https://proget.vitebsk.energo.net/npm/npm-ve/`
+- PyPI: `https://proget.example.com/pypi/pypi-feed/simple`
+- npm: `https://proget.example.com/npm/npm-feed/`
 
-**Nexus** (`http://repos.vitebsk.energo.by:8081`, Sonatype Nexus OSS 3.69):
+**Nexus** (`http://nexus.example.com:8081`, Sonatype Nexus OSS 3.69):
 
 | Repo | Тип | Назначение в CLI |
 |------|-----|------------------|
@@ -97,18 +97,18 @@ isProject: false
 | `npm-group` | group | основной npm registry |
 | `npm-hosted` / `npm-proxy` | hosted/proxy | аналогично |
 | nuget-*, maven-* | — | вне скоупа v1 |
-| `ve` / `ve-site` / `umk` / `jitsi-meet` | — | вне скоупа v1 |
+| прочие репозитории организации | — | вне скоупа v1 |
 
 В `configure` по умолчанию предлагать (как подсказку, поле всё равно можно оставить пустым):
 
-- base: `http://repos.vitebsk.energo.by:8081`
+- base: `http://nexus.example.com:8081`
 - pypi repo: `pypi-group`
 - npm repo: `npm-group`
 
 Индексы Nexus 3:
 
-- PyPI: `http://repos.vitebsk.energo.by:8081/repository/pypi-group/simple`
-- npm: `http://repos.vitebsk.energo.by:8081/repository/npm-group/`
+- PyPI: `http://nexus.example.com:8081/repository/pypi-group/simple`
+- npm: `http://nexus.example.com:8081/repository/npm-group/`
 
 Учесть HTTP (не HTTPS) в доке: для pip/npm в корпсети обычно ок; при необходимости `trusted-host` / `npm strict-ssl false` — задокументировать в README корп. контура, не включать в нейтральный example.
 
@@ -160,15 +160,15 @@ Merge в [`config.py`](src/offline_docker/config.py) / [`context.py`](src/offlin
     {
       "name": "proget",
       "type": "proget",
-      "url": "https://proget.vitebsk.energo.net",
-      "feeds": { "pypi": "ve_pypi", "npm": "npm-ve", "deb": "local-deb" },
+      "url": "https://proget.example.com",
+      "feeds": { "pypi": "pypi-feed", "npm": "npm-feed", "deb": "local-deb" },
       "auth_env": "PROGET_API_KEY",
       "enabled": true
     },
     {
       "name": "nexus",
       "type": "nexus",
-      "url": "http://repos.vitebsk.energo.by:8081",
+      "url": "http://nexus.example.com:8081",
       "repos": { "pypi": "pypi-group", "npm": "npm-group" },
       "auth_env": "NEXUS_AUTH",
       "enabled": true
@@ -212,7 +212,7 @@ Env-override: `OFFLINE_RESOLVE_ORDER=local,proget,nexus`.
 
 ### Этап 3 — ProGet fully
 
-1. Feeds из user-config (`ve_pypi`, `npm-ve`, `local-deb`, …).
+1. Feeds из user-config (`pypi-feed`, `npm-feed`, `local-deb`, …).
 2. Universal/Asset feed для зеркала папки — если появится в ProGet; иначе только proxy feeds.
 3. Тот же materialize/publish контракт.
 
@@ -245,6 +245,6 @@ Env-override: `OFFLINE_RESOLVE_ORDER=local,proget,nexus`.
 
 - Чистый install без configure → только local offline-cache, тесты зелёные.
 - `configure` с пустым вводом → `sources.json` с local-only.
-- `configure` с ProGet URL → download-wheels/npm используют `ve_pypi` / `npm-ve` после local.
-- Example JSON без `proget.vitebsk.energo.net`.
+- `configure` с ProGet URL → download-wheels/npm используют `pypi-feed` / `npm-feed` после local.
+- Example JSON без `proget.example.com`.
 - `discover` показывает активную цепочку и источник конфига (user/project).

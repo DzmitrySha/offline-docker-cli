@@ -14,11 +14,11 @@ from offline_docker.user_config import (
 )
 
 # Helpful placeholders for operators (shown in prompts; Enter keeps empty).
-_HINT_PROGET_URL = "https://proget.vitebsk.energo.net"
-_HINT_PROGET_PYPI = "ve_pypi"
-_HINT_PROGET_NPM = "npm-ve"
+_HINT_PROGET_URL = "https://proget.example.com"
+_HINT_PROGET_PYPI = "pypi-feed"
+_HINT_PROGET_NPM = "npm-feed"
 _HINT_PROGET_DEB = "local-deb"
-_HINT_NEXUS_URL = "http://repos.vitebsk.energo.by:8081"
+_HINT_NEXUS_URL = "http://nexus.example.com:8081"
 _HINT_NEXUS_PYPI = "pypi-group"
 _HINT_NEXUS_NPM = "npm-group"
 

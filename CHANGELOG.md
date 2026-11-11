@@ -1,5 +1,10 @@
 # Changelog
 
+### Unreleased
+
+- CI: GitLab jobs run on the shared shell runner — tests use stdlib `unittest`, so the job needs neither pip nor uv; the Docker `image:` and the uv cache were dropped from `.gitlab-ci.yml`.
+- Public metadata is neutral: `configure` prompt hints and test fixtures use `example.com`; the corporate email was removed from `pyproject.toml` and the security policy.
+
 ### 2.2.3
 
 - The PyPI distribution has been renamed to `offdock`: install with `pip install offdock`. The import package (`offline_docker`), the `offdock` entry point, and `.offline-docker.json` are unchanged.
