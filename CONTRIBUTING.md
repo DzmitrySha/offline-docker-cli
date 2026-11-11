@@ -56,7 +56,8 @@ Before opening a PR, run the changed command against a real target:
 
 Behavior changes must be reflected in both language versions:
 
-- `README.md` (RU) and `.github/README.md` (EN)
+- `README.md` (EN) and `docs/ru/README.md` (RU)
+- `examples/README.md` (EN) and `docs/ru/examples.md` (RU)
 - `CONTRIBUTING.md` / `SECURITY.md` / `CHANGELOG.md` (EN) and `docs/ru/` (RU)
 
 ## Commits and pull requests

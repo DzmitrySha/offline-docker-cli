@@ -56,7 +56,8 @@ offdock.cmd discover -p ..\my-project
 
 Изменение поведения отражается в обеих языковых версиях:
 
-- `README.md` (RU) и `.github/README.md` (EN)
+- `README.md` (EN) и `docs/ru/README.md` (RU)
+- `examples/README.md` (EN) и `docs/ru/examples.md` (RU)
 - `CONTRIBUTING.md` / `SECURITY.md` / `CHANGELOG.md` (EN) и `docs/ru/` (RU)
 
 ## Коммиты и pull request

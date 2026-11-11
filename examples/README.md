@@ -1,85 +1,87 @@
-# Шаблон `.offline-docker.json`
+# `.offline-docker.json` template
 
-Универсальный пример для любого Docker-проекта (backend + frontend, slim CUDA base, offline-cache).
+A universal example for any Docker project (backend + frontend, slim CUDA base, offline cache).
 
-## Установка в проект
+<sub>English · <a href="../docs/ru/examples.md">Русская версия</a></sub>
+
+## Install into a project
 
 ```bash
-# Вариант A: авто-черновик (рекурсивный scan + gaps)
+# Option A: auto-generated draft (recursive scan + gaps)
 offdock init -p /path/to/your-project
 
-# Вариант B: ручной шаблон
+# Option B: manual template
 cp examples/offline-docker.json.example /path/to/your-project/.offline-docker.json
 ```
 
-Если `.offline-docker.json` уже есть, `init` пишет `.offline-docker.generated.json` и не затирает канон.
+If `.offline-docker.json` already exists, `init` writes `.offline-docker.generated.json` and does not overwrite the canonical file.
 
-Затем отредактируйте под свой репозиторий:
+Then edit it for your repository:
 
-| Поле | Что заменить |
-|------|----------------|
-| `app_name` | короткое имя приложения (для env `{APP_NAME}_OFFLINE_CACHE`) |
+| Field | What to replace |
+|-------|-----------------|
+| `app_name` | short application name (for the `{APP_NAME}_OFFLINE_CACHE` env) |
 | `images.base` | shared base (`neuroai-base:cuda12`) |
-| `images.backend` / `images.frontend` | теги app-образов (`*:latest`) |
-| `debs.packages` | APT-пакеты из `Dockerfile.base` / `Dockerfile` |
-| `debs.extra_repos` | при необходимости (напр. Microsoft ODBC) |
-| `docker_images` | базовые образы для `docker load` (redis, trivy и т.д.) |
-| `validate.critical_wheels` | обязательные wheel для validate |
-| `compose_up_offline_lab` | удалите, если нет `docker-compose.lab.yml` |
-| `build_services` | имена сервисов для `build`: `base` (отдельная сборка) и любые ключи из merge compose |
+| `images.backend` / `images.frontend` | app image tags (`*:latest`) |
+| `debs.packages` | APT packages from `Dockerfile.base` / `Dockerfile` |
+| `debs.extra_repos` | if needed (e.g. Microsoft ODBC) |
+| `docker_images` | base images for `docker load` (redis, trivy, etc.) |
+| `validate.critical_wheels` | required wheels for validation |
+| `compose_up_offline_lab` | remove if there is no `docker-compose.lab.yml` |
+| `build_services` | service names for `build`: `base` (separate build) and any keys from the merged compose files |
 
-## Проверка
+## Check
 
 ```bash
 offdock discover -p /path/to/your-project
 ```
 
-## Секции конфига
+## Config sections
 
-- **compose_build** — merge-файлы для `build`
-- **compose_up_offline** — merge-файлы для `up`
-- **build_services** — список для `build` без аргументов: `base` + имена сервисов из compose (не только backend/frontend)
-- **compose_up_offline_lab** — то же + `docker-compose.lab.yml` (флаг `up --lab`)
+- **compose_build** — merge files for `build`
+- **compose_up_offline** — merge files for `up`
+- **build_services** — the list used by `build` without arguments: `base` + service names from compose (not only backend/frontend)
+- **compose_up_offline_lab** — same + `docker-compose.lab.yml` (`up --lab` flag)
 
-Если `compose_up_offline` не задан, CLI использует `compose_build`.
+If `compose_up_offline` is not set, the CLI falls back to `compose_build`.
 
 ### Home lab (`--lab`)
 
-1. Создайте `docker-compose.lab.yml` в корне проекта (порты, volumes, traefik и т.д.).
-2. Укажите `compose_up_offline_lab` — порядок `-f` файлов для `docker compose up`.
-3. Запуск: `offdock up -p . --lab`
+1. Create `docker-compose.lab.yml` in the project root (ports, volumes, traefik, etc.).
+2. Set `compose_up_offline_lab` — the `-f` file order for `docker compose up`.
+3. Run: `offdock up -p . --lab`
 
-Если `compose_up_offline_lab` пустой, CLI возьмёт список из `compose_up_offline` и добавит `docker-compose.lab.yml` в конец.
+If `compose_up_offline_lab` is empty, the CLI takes the list from `compose_up_offline` and appends `docker-compose.lab.yml`.
 
 ### Trivy (`trivy`)
 
-Секция влияет на `cache trivy` и `scan` / `scan trivy`:
+The section affects `cache trivy` and `scan` / `scan trivy`:
 
-| Поле | Назначение |
-|------|------------|
-| `scanner_image` | Образ Trivy (должен быть в `docker_images`) |
-| `db_max_age_days` | Когда считать БД устаревшей |
-| `severity` | Фильтр для scan (`HIGH,CRITICAL`) |
-| `scanners` | Типы сканеров (`vuln`, `secret`, …) |
+| Field | Purpose |
+|-------|---------|
+| `scanner_image` | Trivy image (must be present in `docker_images`) |
+| `db_max_age_days` | When the DB is considered stale |
+| `severity` | Scan filter (`HIGH,CRITICAL`) |
+| `scanners` | Scanner types (`vuln`, `secret`, …) |
 
-Команда scan требует target `backend` или `frontend`:
+The scan command requires a target `backend` or `frontend`:
 
 ```bash
 offdock scan backend
 offdock scan trivy frontend myapp-frontend:custom-tag
 ```
 
-Образ для scan берётся из `images.backend` / `images.frontend`, если не передан тег.
+The image for the scan comes from `images.backend` / `images.frontend` unless a tag is passed.
 
-### Package sources (`cache`) — опционально
+### Package sources (`cache`) — optional
 
-Секция **не обязательна** в project-конфиге. По умолчанию источники настраиваются один раз на машину:
+The section is **not required** in the project config. By default, sources are configured once per machine:
 
 ```bash
 offdock configure
 ```
 
-Если нужна project-specific цепочка (перекрывает user-config), добавьте нейтральный блок с **пустыми** URL или своими значениями:
+If a project-specific chain is needed (it overrides the user config), add a neutral block with **empty** URLs or your own values:
 
 ```json
 "cache": {
@@ -108,4 +110,4 @@ offdock configure
 }
 ```
 
-Пустые URL / `enabled: false` = только offline-cache. Корпоративные адреса в этот example **не** вносятся — см. `offdock configure --help`.
+Empty URLs / `enabled: false` mean offline cache only. Corporate addresses are **not** included in this example — see `offdock configure --help`.

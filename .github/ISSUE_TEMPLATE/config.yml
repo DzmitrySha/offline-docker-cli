@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Документация (RU) / Documentation (EN)
-    url: https://gitlab.vitebsk.energo.net/opo/neuro-ai/offline-docker-cli
-    about: Установка, команды, конфиг проекта, источники пакетов.
+  - name: Documentation / Документация
+    url: https://github.com/DzmitrySha/offline-docker-cli#readme
+    about: Installation, commands, target project config, package sources.
   - name: Security issue
-    url: https://gitlab.vitebsk.energo.net/opo/neuro-ai/offline-docker-cli/-/blob/main/SECURITY.md
-    about: Уязвимости — приватно, не публичным issue.
+    url: https://github.com/DzmitrySha/offline-docker-cli/security/advisories/new
+    about: Report vulnerabilities privately — do not open a public issue.

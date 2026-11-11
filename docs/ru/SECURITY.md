@@ -45,5 +45,5 @@
 
 ## Сообщение об уязвимости
 
-Сообщайте приватно через корпоративный GitLab (confidential issue) или на `d.shapovalov@vitebsk.energo.net`.
+Сообщайте приватно через GitHub Security Advisories публичного репозитория, корпоративный GitLab (confidential issue) или на `d.shapovalov@vitebsk.energo.net`.
 **Не** открывайте публичный issue для уязвимости.

@@ -2,168 +2,168 @@
 
 <h1>offdock</h1>
 
-Универсальная Python CLI для portable offline-cache, офлайн-сборки Docker-образов и Trivy-сканирования Docker-проектов.<br>
-Весь конфиг живёт в целевом репозитории (`.offline-docker.json`); CLI не содержит настроек конкретных проектов.
+A universal Python CLI for portable offline caches, offline Docker image builds and Trivy scanning of Docker projects.<br>
+All configuration lives in the target repository (`.offline-docker.json`); the CLI stores no project-specific settings.
 
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2dd4bf?style=flat-square" alt="License: MIT"></a>
 <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
 <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
 <img src="https://img.shields.io/badge/Trivy-scan-1904DA?style=flat-square" alt="Trivy">
 <img src="https://img.shields.io/badge/uv-locked-DE5FE1?style=flat-square" alt="uv">
-<img src="https://img.shields.io/badge/i18n-RU%20%2F%20EN-22c55e?style=flat-square" alt="RU / EN">
+<img src="https://img.shields.io/badge/i18n-EN%20%2F%20RU-22c55e?style=flat-square" alt="EN / RU">
 
-<sub><a href=".github/README.md">English</a> · Русская версия · <a href="docs/ru/CONTRIBUTING.md">Участие</a> · <a href="docs/ru/SECURITY.md">Безопасность</a> · <a href="docs/ru/CHANGELOG.md">Changelog</a></sub>
+<sub>English · <a href="docs/ru/README.md">Русская версия</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="SECURITY.md">Security</a> · <a href="CHANGELOG.md">Changelog</a></sub>
 
 </div>
 
 ---
 
-## Содержание
+## Contents
 
-- [Как это работает](#как-это-работает)
-- [Возможности](#возможности)
-- [Установка](#установка)
-- [Быстрый старт](#быстрый-старт)
-- [Команды](#команды)
-- [Общие флаги](#общие-флаги)
-- [Примеры команд](#примеры-команд)
-- [Конфигурация целевого проекта](#конфигурация-целевого-проекта)
-- [Источники пакетов (local / ProGet / Nexus)](#источники-пакетов-local--proget--nexus)
-- [Env-переменные](#env-переменные)
-- [Требования](#требования)
-- [Разработка и тесты](#разработка-и-тесты)
-- [Структура репозитория](#структура-репозитория)
-- [Ограничения](#ограничения)
-- [Участие](#участие)
-- [Лицензия](#лицензия)
+- [How it works](#how-it-works)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Commands](#commands)
+- [Common flags](#common-flags)
+- [Command examples](#command-examples)
+- [Target project configuration](#target-project-configuration)
+- [Package sources (local / ProGet / Nexus)](#package-sources-local--proget--nexus)
+- [Environment variables](#environment-variables)
+- [Requirements](#requirements)
+- [Development and tests](#development-and-tests)
+- [Repository layout](#repository-layout)
+- [Limitations](#limitations)
+- [Contributing](#contributing)
+- [License](#license)
 - [Changelog](#changelog)
 
-## Как это работает
+## How it works
 
 ```mermaid
 flowchart LR
-  proj[целевой репозиторий<br/>.offline-docker.json] -->|discover| plan[cache plan]
+  proj[target repository<br/>.offline-docker.json] -->|discover| plan[cache plan]
   net[(PyPI / npm / apt / registry)] -->|cache| bundle[(offline-cache/)]
   plan --> bundle
-  bundle -->|перенос вручную| offline[офлайн-машина]
+  bundle -->|manual transfer| offline[offline machine]
   offline -->|cache load| images[docker images]
   offline -->|build| images
   images -->|up / down| stack[Docker Compose]
   bundle -->|scan| trivy[Trivy offline DB]
 ```
 
-Бандл-папка `offline-cache/` переносится на офлайн-машину вручную — постоянного зеркала/registry-сервиса нет. Compose-файлы склеиваются из `compose_build` / `compose_up_offline` конфига проекта.
+The `offline-cache/` bundle is transferred to the offline machine manually — there is no permanent mirror or registry service. Compose files are assembled from `compose_build` / `compose_up_offline` in the project config.
 
-## Возможности
+## Features
 
-| Возможность | Что даёт |
-|-------------|----------|
-| Project-scoped конфиг | Всё в целевом репозитории: `.offline-docker.json` (или `.yaml`); CLI не хранит проектные настройки |
-| Portable offline-cache | debs, wheels, npm, yarn, docker images, Trivy DB в одной переносимой папке |
-| Источники local → ProGet → Nexus | `resolve.order`, user-level `sources.json`, project override |
-| `cache wheels` | Python берётся из базового образа + ABI-проверка версии |
-| `cache debs` | Кэш привязан к дистрибутиву гостевого образа (`debs/.base-os`) |
-| `hooks.after_cache` + `validation.critical_vendor` | Проектные хуки после кэша и проверка критичных vendor-артефактов |
-| `build` | Офлайн-сборка с merge-файлами и списком сервисов |
-| `up` / `down` | Offline / lab / online режимы Compose |
-| Trivy-скан | Офлайн-БД и лог в `{log_dir}` |
-| Опциональный Textual TUI | Статус кэша, меню команд и live-лог поверх тех же действий CLI |
+| Feature | What it gives you |
+|---------|-------------------|
+| Project-scoped config | Everything in the target repository: `.offline-docker.json` (or `.yaml`); the CLI stores no project settings |
+| Portable offline cache | debs, wheels, npm, yarn, docker images and the Trivy DB in one transferable folder |
+| Sources local → ProGet → Nexus | `resolve.order`, user-level `sources.json`, project override |
+| `cache wheels` | Python taken from the base image + ABI version check |
+| `cache debs` | Cache bound to the guest image distribution (`debs/.base-os`) |
+| `hooks.after_cache` + `validation.critical_vendor` | Project hooks after caching and validation of critical vendor artifacts |
+| `build` | Offline build with merge files and a service list |
+| `up` / `down` | Compose in offline / lab / online modes |
+| Trivy scan | Offline DB and log in `{log_dir}` |
+| Optional Textual TUI | Cache status, command menu and live log on top of the same CLI actions |
 
-## Установка
+## Installation
 
-### Вариант A — без pip (рекомендуется в corp-сети)
+### Option A — without pip (recommended in a corp network)
 
 ```powershell
-# из корня репозитория offline-docker-cli
+# from the offline-docker-cli repository root
 .\offdock.cmd discover -p ..\my-project
 ```
 
-### Вариант B — PyPI
+### Option B — PyPI
 
 ```powershell
 pip install offdock
-pip install "offdock[yaml]"   # опционально: .offline-docker.yaml
-pip install "offdock[tui]"    # опционально: Textual TUI
-offdock configure          # ProGet/Nexus URL (Enter = только offline-cache)
+pip install "offdock[yaml]"   # optional: .offline-docker.yaml
+pip install "offdock[tui]"    # optional: Textual TUI
+offdock configure          # ProGet/Nexus URLs (Enter = offline cache only)
 ```
 
-### Вариант C — из исходников (для разработки)
+### Option C — from source (for development)
 
 ```powershell
 cd offline-docker-cli
 pip install -e ".[dev]"
 ```
 
-### Опциональный TUI
+### Optional TUI
 
-Терминальный UI поверх тех же команд (статус кэша, меню, live-лог). CLI остаётся основным интерфейсом.
+A terminal UI on top of the same commands (cache status, menu, live log). The CLI remains the primary interface.
 
 ```powershell
-# Обычная установка из PyPI
+# Regular install from PyPI
 pip install "offdock[tui]"
 
-# Для разработки самого CLI
+# For CLI development
 pip install -e ".[tui]"
 
-# Запуск
+# Run
 offdock tui -p .
 ```
 
-**Важно:** editable-установка (`-e`) привязывает пакет к папке исходников — если папку переместить/удалить, CLI сломается. Для использования ставьте пакет из PyPI или обычной установкой без `-e`.
+**Important:** an editable install (`-e`) ties the package to the source folder — moving or deleting that folder breaks the CLI. For regular use, install from PyPI or use a normal install without `-e`.
 
-## Быстрый старт
+## Quick start
 
-Сгенерировать черновик конфига (рекурсивный scan) или скопировать шаблон из `examples/`:
+Generate a draft config (recursive scan) or copy the template from `examples/`:
 
 ```powershell
 cd ..\my-project
-offdock init -p .          # → .offline-docker.json (или .generated.json)
+offdock init -p .          # → .offline-docker.json (or .generated.json)
 offdock discover -p .
 offdock cache -p .
-offdock cache check -p .   # проверка полноты offline-cache
+offdock cache check -p .   # verify the offline cache is complete
 offdock build -p .
 offdock up -p .
 ```
 
-### `init` — черновик конфига
+### `init` — config draft
 
-Рекурсивно ищет compose, Dockerfile, python/frontend lock-файлы и пишет JSON по схеме example.
+Recursively finds compose files, Dockerfiles and python/frontend lock files, then writes JSON matching the example schema.
 
-| Ситуация | Файл |
-|----------|------|
-| Нет `.offline-docker.json` / `.yaml` | создаётся `.offline-docker.json` |
-| Канон уже есть | пишется `.offline-docker.generated.json` (канон **не** затирается) |
+| Situation | File |
+|-----------|------|
+| No `.offline-docker.json` / `.yaml` | `.offline-docker.json` is created |
+| Canonical config already exists | `.offline-docker.generated.json` is written (the canonical file is **not** overwritten) |
 
-В JSON есть секция `_init.gaps` и в stdout — блок `Missing / to fix:` (нет `Dockerfile.*.offline`, offline-compose и т.д.).
-**Не** генерируются сами offline-Dockerfile / compose — только пути и список доработок.
+The JSON contains a `_init.gaps` section and stdout shows a `Missing / to fix:` block (no `Dockerfile.*.offline`, no offline compose, etc.).
+The offline Dockerfiles / compose files themselves are **not** generated — only paths and a list of fixes.
 
 ```powershell
-offdock init -p . --dry-run   # только отчёт
+offdock init -p . --dry-run   # report only
 ```
 
-## Команды
+## Commands
 
-| Команда | Описание |
-|---------|----------|
-| `configure` | User-level ProGet/Nexus (или local-only) |
-| `tui` | Интерактивный Textual TUI (нужен `pip install …[tui]`) |
-| `init` | Рекурсивный scan → черновик `.offline-docker.json` (+ gaps) |
-| `discover` | Compose, Python/npm lock, Dockerfile, APT-пакеты, sources, Missing |
-| `cache` | Полный download offline-cache |
-| `cache wheels\|debs\|npm\|yarn\|images\|trivy` | Частичный download |
-| `cache check` | Проверка полноты кэша |
-| `cache load` | `docker load` из `offline-cache/docker/` |
-| `build [base backend frontend]` | Офлайн-сборка |
+| Command | Description |
+|---------|-------------|
+| `configure` | User-level ProGet/Nexus (or local-only) |
+| `tui` | Interactive Textual TUI (requires `pip install …[tui]`) |
+| `init` | Recursive scan → `.offline-docker.json` draft (+ gaps) |
+| `discover` | Compose, Python/npm lock files, Dockerfile, APT packages, sources, Missing |
+| `cache` | Full offline cache download |
+| `cache wheels\|debs\|npm\|yarn\|images\|trivy` | Partial download |
+| `cache check` | Verify cache completeness |
+| `cache load` | `docker load` from `offline-cache/docker/` |
+| `build [base backend frontend]` | Offline build |
 | `up [--lab\|--online] […]` | Compose up (offline / lab / online) |
-| `down [--lab\|--online] [services]` | Compose down того же стека |
-| `scan [trivy] <backend\|frontend> [image]` | Скан образа (default: trivy) |
+| `down [--lab\|--online] [services]` | Compose down for the same stack |
+| `scan [trivy] <backend\|frontend> [image]` | Scan an image (default: trivy) |
 
-## Общие флаги
+## Common flags
 
-- `--project PATH` / `-p` — корень целевого проекта (default: текущий каталог)
-- `--config PATH` — явный путь к конфигу (default: `.offline-docker.json` в корне проекта)
+- `--project PATH` / `-p` — target project root (default: current directory)
+- `--config PATH` — explicit config path (default: `.offline-docker.json` in the project root)
 
-Справка и примеры — в `--help` (общий и по команде):
+Help and examples are available in `--help` (global and per command):
 
 ```powershell
 offdock --help
@@ -171,94 +171,94 @@ offdock scan --help
 offdock up --help
 ```
 
-## Примеры команд
+## Command examples
 
-Пути относительны: команды запускаются из корня `offline-docker-cli`, целевой проект — соседний каталог `my-project`.
+Paths are relative: commands run from the `offline-docker-cli` root, and the target project is the sibling directory `my-project`.
 
-### Подготовка и сборка
+### Preparation and build
 
 ```powershell
-# Полный цикл подготовки кэша (на машине с интернетом)
+# Full cache preparation cycle (on a machine with internet access)
 offdock cache -p ..\my-project
 
-# На офлайн-машине: загрузить образы и собрать
+# On the offline machine: load images and build
 offdock cache load -p .
 offdock build -p .
 offdock cache check -p .
 
-# Собрать только backend (без base/frontend)
+# Build only the backend (without base/frontend)
 offdock build -p . backend
 ```
 
-### `up` / `down` и режимы `--lab` / `--online`
+### `up` / `down` and the `--lab` / `--online` modes
 
-Обычный offline-стек (merge-файлы из `compose_up_offline` в конфиге):
+Regular offline stack (merge files from `compose_up_offline` in the config):
 
 ```powershell
 offdock up -p .
 offdock down -p .
 ```
 
-Home lab — дополнительно подключается `docker-compose.lab.yml`:
+Home lab — additionally includes `docker-compose.lab.yml`:
 
 ```powershell
 offdock up -p . --lab
 offdock down -p . --lab
 ```
 
-Online — только `compose_online`:
+Online — `compose_online` only:
 
 ```powershell
 offdock up -p . --online
 offdock down -p . --online
 ```
 
-Что нужно в **целевом проекте** для `--lab`:
+What the **target project** needs for `--lab`:
 
-1. Файл `docker-compose.lab.yml` в корне репозитория (override для домашней среды).
-2. В `.offline-docker.json` — секция `compose_up_offline_lab` со списком compose-файлов (см. `examples/offline-docker.json.example`). Если секция не задана, CLI сам добавит `docker-compose.lab.yml` к списку из `compose_up_offline`.
+1. A `docker-compose.lab.yml` file in the repository root (override for the home environment).
+2. A `compose_up_offline_lab` section in `.offline-docker.json` listing compose files (see `examples/offline-docker.json.example`). If the section is absent, the CLI appends `docker-compose.lab.yml` to the `compose_up_offline` list.
 
-Подробнее о полях конфига: [`examples/README.md`](examples/README.md).
+More about config fields: [`examples/README.md`](examples/README.md).
 
-Дополнительные флаги:
+Additional flags:
 
 ```powershell
-# Не пересобирать образы (уже собраны)
+# Do not rebuild images (already built)
 offdock up -p . --no-build
 
-# Поднять только backend, без пересоздания зависимостей
+# Bring up only the backend without recreating dependencies
 offdock up -p . --no-deps backend
 
-# Lab + только frontend
+# Lab + frontend only
 offdock up -p . --lab frontend
 
-# Остановить отдельные сервисы
+# Stop individual services
 offdock down -p . backend frontend
 ```
 
 ### `scan`
 
-**Обязательный** target: `backend` или `frontend`.
-Опционально — сканер (`trivy`, default) и тег образа.
+**Required** target: `backend` or `frontend`.
+Optionally — the scanner (`trivy`, default) and the image tag.
 
 ```powershell
-# Скан backend-образа из конфига (images.backend)
+# Scan the backend image from the config (images.backend)
 offdock scan backend
 
-# Явно указать сканер
+# Explicitly specify the scanner
 offdock scan trivy frontend
 
-# Явный тег образа
+# Explicit image tag
 offdock scan trivy backend myapp-backend:cuda12
 ```
 
-Перед сканом:
+Before scanning:
 
-1. Образ должен существовать локально (`docker images`) — обычно после `build`.
-2. БД Trivy в `offline-cache/trivy/` — `cache trivy` или `cache` (на машине с интернетом); на офлайн-машине CLI попытается использовать кэш и предупредит, если БД устарела.
-3. Образ сканера `aquasec/trivy:latest` — в `docker_images` конфига, загружается через `cache load`.
+1. The image must exist locally (`docker images`) — usually after `build`.
+2. The Trivy DB must be in `offline-cache/trivy/` — `cache trivy` or `cache` (on a machine with internet access); on the offline machine the CLI tries to use the cache and warns if the DB is stale.
+3. The `aquasec/trivy:latest` scanner image must be listed in `docker_images` in the config and loaded via `cache load`.
 
-Параметры сканирования (`severity`, `scanners`, `db_max_age_days`) — в секции `trivy` конфига:
+Scan parameters (`severity`, `scanners`, `db_max_age_days`) live in the `trivy` section of the config:
 
 ```json
 "trivy": {
@@ -269,125 +269,125 @@ offdock scan trivy backend myapp-backend:cuda12
 }
 ```
 
-Лог пишется в `{log_dir}/trivy-scan-{backend|frontend}.log` (default: `storage/logs/`).
+The log is written to `{log_dir}/trivy-scan-{backend|frontend}.log` (default: `storage/logs/`).
 
-## Конфигурация целевого проекта
+## Target project configuration
 
-1. **`.offline-docker.json`** (или `.offline-docker.yaml`) в корне репозитория — **канон**
-2. **Auto-discovery** — fallback, если конфига нет (для `discover`; для build рекомендуется конфиг)
+1. **`.offline-docker.json`** (or `.offline-docker.yaml`) in the repository root — **canonical**
+2. **Auto-discovery** — fallback when there is no config (for `discover`; a config is recommended for `build`)
 
-Пример: `examples/offline-docker.json.example` — скопируйте в корень проекта как `.offline-docker.json`.
+Example: `examples/offline-docker.json.example` — copy it to the project root as `.offline-docker.json`.
 
-## Источники пакетов (local / ProGet / Nexus)
+## Package sources (local / ProGet / Nexus)
 
-По умолчанию CLI использует **только локальный** `offline-cache/`.
+By default the CLI uses **only the local** `offline-cache/`.
 
-После установки настройте корпоративные реестры (один раз на машину):
+After installation, configure the corporate registries (once per machine):
 
 ```powershell
 offdock configure
-# заполнение кэша с интернета (local + PyPI/npmjs):
+# populate the cache from the internet (local + PyPI/npmjs):
 offdock configure --with-upstream
-# только offline-cache (корп/офлайн VM):
+# offline cache only (corp/offline VM):
 offdock configure --local-only
 offdock configure --proget-url https://proget.example.com --nexus-url http://nexus.example.com:8081
 ```
 
-Конфиг пишется в user-level файл (не в example проекта):
+The config is written to a user-level file (not to the project example):
 
 - Linux/macOS: `~/.config/offline-docker/sources.json`
 - Windows: `%APPDATA%\offline-docker\sources.json`
-- override каталога: `OFFLINE_DOCKER_CONFIG_DIR`
+- directory override: `OFFLINE_DOCKER_CONFIG_DIR`
 
-Приоритет: **project `.offline-docker.json` → секция `cache`** перекрывает user-config; иначе user; иначе local-only.
+Priority: **project `.offline-docker.json` → `cache` section** overrides the user config; otherwise the user config; otherwise local-only.
 
-| Режим | Когда |
-|-------|--------|
-| `--with-upstream` | Машина с сетью: `cache` / `cache wheels` тянет с PyPI/npmjs в `offline-cache/` |
-| `--local-only` | Офлайн/корп VM: сборка только из уже скачанного кэша |
-| ProGet/Nexus | Корп. зеркала; порядок в `resolve.order` |
+| Mode | When |
+|------|------|
+| `--with-upstream` | Machine with network: `cache` / `cache wheels` pulls from PyPI/npmjs into `offline-cache/` |
+| `--local-only` | Offline/corp VM: build only from the already downloaded cache |
+| ProGet/Nexus | Corp mirrors; order in `resolve.order` |
 
-Порядок поиска задаётся `resolve.order` (например `local,upstream` или `local,proget,nexus`). `cache wheels` / `cache npm` ходят по цепочке index URL и дописывают артефакты в локальную папку (`fill_local`).
+The lookup order is set by `resolve.order` (for example `local,upstream` or `local,proget,nexus`). `cache wheels` / `cache npm` walk the index URL chain and append artifacts to the local folder (`fill_local`).
 
-Если в `sources.json` стоит **local-only**, `cache wheels` всё равно временно добавляет PyPI/PyTorch (с WARN) и перед скачиванием удаляет **устаревшие** wheels, чья версия не совпадает с pin в lock/requirements (типичный случай `protobuf==7.x` при старом `6.x` в кэше).
+If `sources.json` is set to **local-only**, `cache wheels` still temporarily adds PyPI/PyTorch (with a WARN) and, before downloading, removes **stale** wheels whose version does not match the pin in the lock/requirements (a typical case is `protobuf==7.x` with an old `6.x` in the cache).
 
-Auth (опционально, через env, не в JSON): `PROGET_API_KEY`, `NEXUS_AUTH` (`user:pass` или Bearer).
+Auth (optional, via env, not in JSON): `PROGET_API_KEY`, `NEXUS_AUTH` (`user:pass` or Bearer).
 
-Для Nexus по HTTP pip автоматически получает `--trusted-host`; npm — `strict-ssl false`.
+For Nexus over HTTP, pip automatically receives `--trusted-host`; npm gets `strict-ssl false`.
 
-Env: `OFFLINE_RESOLVE_ORDER=local,proget,nexus` — временный override порядка.
+Env: `OFFLINE_RESOLVE_ORDER=local,proget,nexus` — temporary order override.
 
-Шаблон проекта (`examples/offline-docker.json.example`) **нейтральный** — без корпоративных URL.
+The project template (`examples/offline-docker.json.example`) is **neutral** — no corporate URLs.
 
-## Env-переменные
+## Environment variables
 
-| Переменная | Назначение |
-|------------|------------|
-| `OFFLINE_CACHE` | Путь к offline-cache (override) |
-| `{APP_NAME}_OFFLINE_CACHE` | Alias из `app_name` в конфиге |
-| `OFFLINE_DOCKER_CONFIG_DIR` | Каталог user-config (`sources.json`) |
-| `OFFLINE_RESOLVE_ORDER` | Порядок sources через запятую |
-| `PROGET_API_KEY` / `NEXUS_AUTH` | Auth для remote |
-| `PYTORCH_INDEX` | Index URL для torch wheels |
-| `PYPI_INDEX` | Force primary PyPI index |
-| `DOCKER_BUILDKIT` | `1` для build |
+| Variable | Purpose |
+|----------|---------|
+| `OFFLINE_CACHE` | Path to the offline cache (override) |
+| `{APP_NAME}_OFFLINE_CACHE` | Alias from `app_name` in the config |
+| `OFFLINE_DOCKER_CONFIG_DIR` | User config directory (`sources.json`) |
+| `OFFLINE_RESOLVE_ORDER` | Comma-separated source order |
+| `PROGET_API_KEY` / `NEXUS_AUTH` | Auth for remote sources |
+| `PYTORCH_INDEX` | Index URL for torch wheels |
+| `PYPI_INDEX` | Force the primary PyPI index |
+| `DOCKER_BUILDKIT` | `1` for build |
 
-## Требования
+## Requirements
 
 - Python 3.11+
-- Docker (CLI на PATH)
+- Docker (CLI on PATH)
 
-## Разработка и тесты
+## Development and tests
 
 ```bash
-uv sync --extra dev      # .venv с pyyaml, textual, pytest
-uv run pytest -q         # весь набор tests/
+uv sync --extra dev      # .venv with pyyaml, textual, pytest
+uv run pytest -q         # the whole tests/ suite
 uv run offdock --version
 uv run offdock --help
 ```
 
-- После правок зависимостей — `uv lock` и коммит `uv.lock`.
-- Версия синхронизируется в `pyproject.toml` и `src/offline_docker/__init__.py`.
-- Проверка на реальном проекте: `offdock discover -p ..\my-project`.
-- Запуск без установки — `offdock.cmd` (`PYTHONPATH=src`, `python -m offline_docker`).
+- After changing dependencies — run `uv lock` and commit `uv.lock`.
+- Keep the version in sync in `pyproject.toml` and `src/offline_docker/__init__.py`.
+- Verify against a real project: `offdock discover -p ..\my-project`.
+- Run without installing — `offdock.cmd` (`PYTHONPATH=src`, `python -m offline_docker`).
 
-## Структура репозитория
+## Repository layout
 
 ```
 offline-docker-cli/
-├── .github/               # EN README, шаблоны issue/PR, GitHub Actions
-├── docs/ru/               # RU-версии CONTRIBUTING / SECURITY / CHANGELOG
-├── examples/              # шаблоны .offline-docker.json
+├── .github/               # issue/PR templates, GitHub Actions
+├── docs/ru/               # RU versions of README / CONTRIBUTING / SECURITY / CHANGELOG / examples
+├── examples/              # .offline-docker.json templates
 ├── src/offline_docker/    # CLI, cache, build, scan, TUI
 ├── tests/                 # pytest
 ├── .gitattributes
 ├── .gitlab-ci.yml         # GitLab CI
-├── AGENTS.md              # правила для агентов
+├── AGENTS.md              # agent rules
 ├── CONTRIBUTING.md        # EN
 ├── SECURITY.md            # EN
 ├── CHANGELOG.md           # EN
 ├── LICENSE
-├── offdock.cmd            # запуск без установки (Windows)
+├── offdock.cmd            # run without installing (Windows)
 ├── pyproject.toml
-└── README.md              # RU (этот файл)
+└── README.md              # EN
 ```
 
-## Ограничения
+## Limitations
 
-- Не LAN-зеркало: portable бандл, без постоянного registry-сервиса.
-- Для `build` / `up` нужен Docker.
-- Trivy DB стареет; `db_max_age_days` только предупреждает, не блокирует.
-- Образы тянутся по тегу (digest не пиннится).
-- Конфиги конкретных проектов в CLI не хранятся.
+- Not a LAN mirror: a portable bundle, no permanent registry service.
+- `build` / `up` require Docker.
+- The Trivy DB ages; `db_max_age_days` only warns, it does not block.
+- Images are pulled by tag (digests are not pinned).
+- Project-specific configs are not stored in the CLI.
 
-## Участие
+## Contributing
 
-Правила разработки и проверки — [docs/ru/CONTRIBUTING.md](docs/ru/CONTRIBUTING.md). Политика безопасности — [docs/ru/SECURITY.md](docs/ru/SECURITY.md); уязвимости не публикуйте в публичном issue.
+Development and verification rules — [CONTRIBUTING.md](CONTRIBUTING.md). Security policy — [SECURITY.md](SECURITY.md); do not report vulnerabilities in a public issue.
 
-## Лицензия
+## License
 
 [MIT](LICENSE) © 2026 D.Shapovalov.
 
 ## Changelog
 
-Полная история изменений — [docs/ru/CHANGELOG.md](docs/ru/CHANGELOG.md).
+Full history — [CHANGELOG.md](CHANGELOG.md).

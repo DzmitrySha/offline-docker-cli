@@ -12,7 +12,7 @@
 - [ ] `uv run pytest -q`
 - [ ] `uv run offdock --help`
 - [ ] Ran against a real `-p` project
-- [ ] Docs updated: `README.md` (RU) and `.github/README.md` (EN)
+- [ ] Docs updated: `README.md` (EN) and `docs/ru/README.md` (RU)
 
 ## Notes
 
