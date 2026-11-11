@@ -361,7 +361,6 @@ offline-docker-cli/
 ├── src/offline_docker/    # CLI, cache, build, scan, TUI
 ├── tests/                 # pytest
 ├── .gitattributes
-├── .gitlab-ci.yml         # GitLab CI
 ├── AGENTS.md              # agent rules
 ├── CONTRIBUTING.md        # EN
 ├── SECURITY.md            # EN

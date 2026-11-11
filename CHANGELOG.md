@@ -2,7 +2,8 @@
 
 ### Unreleased
 
-- CI: GitLab jobs run on the shared shell runner (system Python 3.6, no pip/uv). Tests use stdlib `unittest`, so no dependencies are installed: the job takes an existing Python 3.11+ or provisions standalone CPython 3.12 via uv. Shallow cloning is disabled (`GIT_STRATEGY: clone`, `GIT_DEPTH: 0`); the Docker `image:` and the uv cache were dropped.
+- The project has moved to GitHub; CI runs on GitHub Actions only (`.github/workflows/ci.yml`: Python 3.11/3.12, locked `uv` install, `pytest`, CLI smoke). `.gitlab-ci.yml` is removed.
+- Tests stay compatible with stdlib `unittest` and run without installing dependencies (`PYTHONPATH=src python -m unittest discover -s tests -t .`).
 - Public metadata is neutral: `configure` prompt hints and test fixtures use `example.com`; the corporate email was removed from `pyproject.toml` and the security policy.
 
 ### 2.2.3

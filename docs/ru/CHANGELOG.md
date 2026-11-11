@@ -2,7 +2,8 @@
 
 ### Unreleased
 
-- CI: job в GitLab выполняется на общем shell-раннере (системный Python 3.6, без pip/uv). Тесты идут через stdlib `unittest`, ничего не устанавливается: берётся существующий Python 3.11+ или ставится standalone CPython 3.12 через uv. Shallow clone отключён (`GIT_STRATEGY: clone`, `GIT_DEPTH: 0`), `image:` и uv-кэш из `.gitlab-ci.yml` убраны.
+- Проект перенесён на GitHub; CI только GitHub Actions (`.github/workflows/ci.yml`: Python 3.11/3.12, установка по `uv.lock`, `pytest`, smoke CLI). `.gitlab-ci.yml` удалён.
+- Тесты по-прежнему совместимы со stdlib `unittest` и идут без установки зависимостей (`PYTHONPATH=src python -m unittest discover -s tests -t .`).
 - Публичные метаданные нейтральны: подсказки `configure` и фикстуры тестов используют `example.com`; корпоративный e-mail убран из `pyproject.toml` и политики безопасности.
 
 ### 2.2.3
